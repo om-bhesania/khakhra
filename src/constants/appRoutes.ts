@@ -1,11 +1,19 @@
 import NotFound from "@/layout/NotFound";
+import { BillingAdd, BillingView } from "@/pages/Billing/Billing";
 import { CustomerAdd, CustomerView } from "@/pages/Customer/Customer";
+import { InventoryAdd, InventoryView } from "@/pages/Inventory/Inventory";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import AuditLogs from "@/pages/Roles/AuditLogs";
+import RoleManagement from "@/pages/Roles/RoleManagement";
 import {
+  FileSpreadsheet,
   Home as HomeIcon,
   LucideBoxes,
+  ReceiptIndianRupee,
+  ScrollText,
   Settings as SettingIcon,
+  Shield,
   User,
   UserPlus,
   UserRoundSearch,
@@ -14,7 +22,6 @@ import {
 import type { ComponentType, SVGProps } from "react";
 import Home from "./../pages/Home";
 import Settings from "./../pages/Settings";
-import { InventoryAdd, InventoryView } from "@/pages/Inventory/Inventory";
 
 export type IconType = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -52,6 +59,7 @@ export const appRoutes: AppRoute[] = [
     type: "private",
     icon: SettingIcon,
     element: Settings,
+    hideSidebar: true,
   },
 
   // Public routes
@@ -105,6 +113,26 @@ export const appRoutes: AppRoute[] = [
     ],
   },
   {
+    name: "Billing",
+    path: "/billing",
+    type: "private",
+    icon: ReceiptIndianRupee,
+    submenu: [
+      {
+        name: "View Bills",
+        path: "/billing/view",
+        icon: FileSpreadsheet,
+        element: BillingView,
+      },
+      {
+        name: "Add Bill",
+        path: "/billing/add",
+        icon: ReceiptIndianRupee,
+        element: BillingAdd,
+      },
+    ],
+  },
+  {
     name: "Customer",
     path: "/customer",
     type: "private",
@@ -121,6 +149,26 @@ export const appRoutes: AppRoute[] = [
         path: "/customer/add",
         icon: UserPlus,
         element: CustomerAdd,
+      },
+    ],
+  },
+  {
+    name: "Role Management",
+    path: "/roles",
+    type: "private",
+    icon: Shield,
+    submenu: [
+      {
+        name: "Manage Roles",
+        path: "/roles/manage",
+        icon: Users,
+        element: RoleManagement,
+      },
+      {
+        name: "Audit Logs",
+        path: "/roles/audit",
+        icon: ScrollText,
+        element: AuditLogs,
       },
     ],
   },

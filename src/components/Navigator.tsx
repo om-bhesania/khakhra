@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/use-auth";
 import CustomBreadCrumbs from "./BreadCrumbsCustomUi";
 import { ModeToggle } from "./themeToggle";
 import {
@@ -29,6 +30,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "./ui/sidebar";
+import InitButton from "@/lib/initRole";
 
 type MenuIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 export type MenuItem = {
@@ -170,13 +172,10 @@ function Navigator() {
           </SidebarContent>
           <SidebarFooter>
             <ModeToggle variant="button" />
-
+            {/* <InitButton /> */}
             <Button
               variant="outline"
-              onClick={() => {
-                alert("Logout");
-              }}
-              content="Logout"
+              onClick={useAuth().logout}
               className="w-full flex items-center justify-start gap-4"
             >
               <LogOut className="size-4" />

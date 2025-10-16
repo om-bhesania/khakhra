@@ -10,4 +10,17 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    port: 5173,
+    headers: {
+      // Fix COOP issue for Firebase popup authentication in development
+      "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+    },
+  },
+  preview: {
+    headers: {
+      // Also fix for production preview
+      "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+    },
+  }, 
 });

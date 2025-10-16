@@ -4,25 +4,22 @@ import { Input } from "@/components/ui/input";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { useForm } from "@tanstack/react-form";
 import { IndianRupee } from "lucide-react";
-import { toast } from "sonner";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 function InventoryForm() {
   const { addDocument, subscribeToCollection, readDocuments } =
     useFirestoreCRUD();
   const [inventory, setInventory] = useState<string[]>([]);
-  const [isLoadingModes, setIsLoadingModes] = useState(false);
 
   // Load and subscribe payment modes
   useEffect(() => {
     let unsub: (() => void) | undefined;
     (async () => {
-      setIsLoadingModes(true);
       const initial = await readDocuments<{ name: string }>("inventory");
       setInventory(
         initial.map((m) => String((m as any).price)).filter(Boolean)
       );
-      setIsLoadingModes(false);
 
       unsub = subscribeToCollection("inventory", {
         onUpdate: (data: Array<{ name: string }>) => {
@@ -34,7 +31,7 @@ function InventoryForm() {
       if (typeof unsub === "function") unsub();
     };
   }, [readDocuments, subscribeToCollection]);
-  console.log("inventory", inventory);
+   console.log("inventory", inventory);
   const form = useForm({
     defaultValues: {
       price: 0,
@@ -59,11 +56,16 @@ function InventoryForm() {
           payload.flavour = trimmedFlavour;
         }
 
-        if (value.minStockAlertLevel !== undefined && value.minStockAlertLevel !== null && value.minStockAlertLevel !== ("" as any)) {
+        if (
+          value.minStockAlertLevel !== undefined &&
+          value.minStockAlertLevel !== null &&
+          value.minStockAlertLevel !== ("" as any)
+        ) {
           payload.minStockAlertLevel = Number(value.minStockAlertLevel);
         }
 
         await addDocument("inventory", payload);
+        `                                                                                                                               `;
         toast.success("Inventory item saved");
         form.reset();
       } catch (err: any) {

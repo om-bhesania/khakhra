@@ -16,9 +16,11 @@ import {
   Timestamp,
   FirestoreError,
   setDoc,
+  writeBatch,
 } from "firebase/firestore";
 import type { DocumentData, Unsubscribe } from "firebase/firestore";
-import { db } from  "../config/firebase.config";
+import { db } from "../config/firebase.config";
+import { getAuth } from "firebase/auth";
 
 // Base document type with Firebase metadata
 export interface FirestoreDocument {
@@ -33,8 +35,8 @@ export type DocumentWithId<T> = T & FirestoreDocument;
 // Collection schema definition
 export interface CollectionSchema {
   name: string;
-  fields: Record<string, any>; // Field definitions
-  indexes?: string[]; // Fields to index
+  fields: Record<string, any>;
+  indexes?: string[];
 }
 
 // Query options
@@ -89,29 +91,70 @@ class FirestoreCache {
     this.cache.delete(key);
   }
 
+  invalidatePattern(pattern: string) {
+    const keys = Array.from(this.cache.keys());
+    keys.forEach((key) => {
+      if (key.includes(pattern)) {
+        this.cache.delete(key);
+      }
+    });
+  }
+
   clear() {
     this.cache.clear();
   }
 }
 
 /**
- * Simplified Firestore CRUD Hook
- * Usage: const { createCollection, addDocument, readDocument, ... } = useFirestoreCRUD()
+ * Simplified Firestore CRUD Hook with User-Specific Collections
  */
 export function useFirestoreCRUD() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const auth = getAuth();
 
   const collections = useRef<Map<string, CollectionSchema>>(new Map());
   const cache = useRef(new FirestoreCache());
   const subscriptions = useRef<Map<string, Unsubscribe>>(new Map());
-  const throttleTimers = useRef<any>(new Map());
+  const throttleTimers = useRef<Map<string, number>>(new Map());
+
+  // System-wide collections (not user-specific)
+  const SYSTEM_COLLECTIONS = ["users", "roles", "permissions", "settings"];
+
+  // Helper to get user-specific collection path
+  const getUserCollectionPath = useCallback(
+    (collectionName: string): string => {
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        throw new Error("No authenticated user. Please sign in first.");
+      }
+
+      // If collection path already contains '/', treat it as a full path
+      if (collectionName.includes("/")) {
+        // Replace {userId} placeholder with actual user ID
+        return collectionName.replace("{userId}", currentUser.uid);
+      }
+
+      // System-wide collections don't need user-specific paths
+      if (SYSTEM_COLLECTIONS.includes(collectionName)) {
+        return collectionName;
+      }
+
+      // User-specific collections
+      return `users/${currentUser.uid}/${collectionName}`;
+    },
+    [auth.currentUser]
+  );
 
   const handleError = (err: unknown, operation: string) => {
     const errorMessage =
       err instanceof FirestoreError
+        ? `${operation} failed: ${err.message} (${err.code})`
+        : err instanceof Error
         ? `${operation} failed: ${err.message}`
         : `${operation} failed: Unknown error`;
+
     setError(errorMessage);
     console.error(`Firestore ${operation} error:`, err);
     return errorMessage;
@@ -119,8 +162,6 @@ export function useFirestoreCRUD() {
 
   /**
    * Create/Register a collection schema
-   * This doesn't create the collection in Firestore (collections are created when first document is added)
-   * but registers it in your app for validation and type checking
    */
   const createCollection = useCallback((schema: CollectionSchema | string) => {
     const collectionSchema: CollectionSchema =
@@ -133,72 +174,6 @@ export function useFirestoreCRUD() {
   }, []);
 
   /**
-   * Migrate/Update collection schema
-   * Updates existing documents to match new schema (adds missing fields with default values)
-   */
-  const migrateCollection = useCallback(
-    async (
-      collectionName: string,
-      migration: {
-        addFields?: Record<string, any>;
-        removeFields?: string[];
-        transformData?: (doc: any) => any;
-      }
-    ) => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const collectionRef = collection(db, collectionName);
-        const snapshot = await getDocs(query(collectionRef, limit(100)));
-
-        const updatePromises = snapshot.docs.map(async (docSnap) => {
-          const docRef = doc(db, collectionName, docSnap.id);
-          let data = docSnap.data();
-
-          // Add new fields
-          if (migration.addFields) {
-            data = { ...data, ...migration.addFields };
-          }
-
-          // Remove fields
-          if (migration.removeFields) {
-            migration.removeFields.forEach((field) => {
-              delete data[field];
-            });
-          }
-
-          // Transform data
-          if (migration.transformData) {
-            data = migration.transformData(data);
-          }
-
-          // Update timestamp
-          data.updatedAt = Timestamp.now();
-
-          await setDoc(docRef, data, { merge: true });
-        });
-
-        await Promise.all(updatePromises);
-
-        // Invalidate cache for this collection
-        cache.current.invalidate(`${collectionName}_all`);
-
-        setLoading(false);
-        console.log(
-          `Migration completed for '${collectionName}': ${snapshot.docs.length} documents updated`
-        );
-        return true;
-      } catch (err) {
-        handleError(err, "Migration");
-        setLoading(false);
-        return false;
-      }
-    },
-    []
-  );
-
-  /**
    * Add a document to a collection
    */
   const addDocument = useCallback(
@@ -207,15 +182,24 @@ export function useFirestoreCRUD() {
       setError(null);
 
       try {
-        const collectionRef = collection(db, collectionName);
+        if (!auth.currentUser) {
+          throw new Error("No authenticated user. Please sign in first.");
+        }
+
+        const collPath = getUserCollectionPath(collectionName);
+        console.log(`Adding document to: ${collPath}`);
+
+        const collectionRef = collection(db, collPath);
 
         const documentData = {
           ...data,
+          userId: auth.currentUser.uid,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         };
 
         const docRef = await addDoc(collectionRef, documentData);
+        console.log(`Document added successfully with ID: ${docRef.id}`);
 
         const newDoc = {
           id: docRef.id,
@@ -223,8 +207,8 @@ export function useFirestoreCRUD() {
         };
 
         // Update cache
-        cache.current.set(`${collectionName}_${docRef.id}`, newDoc);
-        cache.current.invalidate(`${collectionName}_all`);
+        cache.current.set(`${collPath}_${docRef.id}`, newDoc);
+        cache.current.invalidatePattern(collPath);
 
         setLoading(false);
         return newDoc;
@@ -234,7 +218,7 @@ export function useFirestoreCRUD() {
         return null;
       }
     },
-    []
+    [auth.currentUser, getUserCollectionPath]
   );
 
   /**
@@ -246,19 +230,29 @@ export function useFirestoreCRUD() {
       id: string,
       useCache = true
     ): Promise<DocumentWithId<T> | null> => {
-      const cacheKey = `${collectionName}_${id}`;
+      if (!auth.currentUser) {
+        const errorMsg = "No authenticated user. Please sign in first.";
+        setError(errorMsg);
+        return null;
+      }
+
+      const collPath = getUserCollectionPath(collectionName);
+      const cacheKey = `${collPath}_${id}`;
 
       // Check cache
       if (useCache) {
         const cached = cache.current.get(cacheKey);
-        if (cached) return cached as DocumentWithId<T>;
+        if (cached) {
+          console.log(`Cache hit for: ${cacheKey}`);
+          return cached as DocumentWithId<T>;
+        }
       }
 
       setLoading(true);
       setError(null);
 
       try {
-        const docRef = doc(db, collectionName, id);
+        const docRef = doc(db, collPath, id);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
@@ -281,7 +275,7 @@ export function useFirestoreCRUD() {
         return null;
       }
     },
-    []
+    [auth.currentUser, getUserCollectionPath]
   );
 
   /**
@@ -292,19 +286,31 @@ export function useFirestoreCRUD() {
       collectionName: string,
       options?: QueryOptions
     ): Promise<Array<DocumentWithId<T>>> => {
-      const cacheKey = `${collectionName}_all_${JSON.stringify(options || {})}`;
+      if (!auth.currentUser) {
+        const errorMsg = "No authenticated user. Please sign in first.";
+        setError(errorMsg);
+        return [];
+      }
+console.log("collectionName", collectionName);
+      const collPath = getUserCollectionPath(collectionName);
+      console.log("collPath", collPath);
+      const cacheKey = `${collPath}_all_${JSON.stringify(options || {})}`;
 
-      // Check cache
+      // Check cache only if no filters
       if (!options?.where && !options?.orderBy) {
         const cached = cache.current.get(cacheKey);
-        if (cached) return cached as Array<DocumentWithId<T>>;
+        if (cached) {
+          console.log(`Cache hit for: ${cacheKey}`);
+          return cached as Array<DocumentWithId<T>>;
+        }
       }
 
       setLoading(true);
       setError(null);
 
       try {
-        const collectionRef = collection(db, collectionName);
+        console.log(`Reading documents from: ${collPath}`);
+        const collectionRef = collection(db, collPath);
         const constraints: QueryConstraint[] = [];
 
         // Build query
@@ -320,15 +326,16 @@ export function useFirestoreCRUD() {
           );
         }
 
-        // Limit to 100 by default
-        const limitCount = Math.min(options?.limit || 100, 100);
+        const limitCount = options?.limit ? Math.min(options.limit, 1000) : 100;
         constraints.push(limit(limitCount));
 
         const q =
           constraints.length > 0
             ? query(collectionRef, ...constraints)
             : query(collectionRef, limit(100));
+
         const snapshot = await getDocs(q);
+        console.log(`Found ${snapshot.docs.length} documents`);
 
         const documents = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -344,7 +351,7 @@ export function useFirestoreCRUD() {
         return [];
       }
     },
-    []
+    [auth.currentUser, getUserCollectionPath]
   );
 
   /**
@@ -356,11 +363,20 @@ export function useFirestoreCRUD() {
       id: string,
       data: Partial<T>
     ) => {
+      if (!auth.currentUser) {
+        const errorMsg = "No authenticated user. Please sign in first.";
+        setError(errorMsg);
+        return false;
+      }
+
       setLoading(true);
       setError(null);
 
       try {
-        const docRef = doc(db, collectionName, id);
+        const collPath = getUserCollectionPath(collectionName);
+        console.log(`Updating document: ${collPath}/${id}`);
+
+        const docRef = doc(db, collPath, id);
 
         const updateData = {
           ...data,
@@ -368,10 +384,11 @@ export function useFirestoreCRUD() {
         };
 
         await updateDoc(docRef, updateData);
+        console.log(`Document updated successfully`);
 
         // Invalidate cache
-        cache.current.invalidate(`${collectionName}_${id}`);
-        cache.current.invalidate(`${collectionName}_all`);
+        cache.current.invalidate(`${collPath}_${id}`);
+        cache.current.invalidatePattern(collPath);
 
         setLoading(false);
         return true;
@@ -381,7 +398,7 @@ export function useFirestoreCRUD() {
         return false;
       }
     },
-    []
+    [auth.currentUser, getUserCollectionPath]
   );
 
   /**
@@ -389,16 +406,26 @@ export function useFirestoreCRUD() {
    */
   const deleteDocument = useCallback(
     async (collectionName: string, id: string) => {
+      if (!auth.currentUser) {
+        const errorMsg = "No authenticated user. Please sign in first.";
+        setError(errorMsg);
+        return false;
+      }
+
       setLoading(true);
       setError(null);
 
       try {
-        const docRef = doc(db, collectionName, id);
+        const collPath = getUserCollectionPath(collectionName);
+        console.log(`Deleting document: ${collPath}/${id}`);
+
+        const docRef = doc(db, collPath, id);
         await deleteDoc(docRef);
+        console.log(`Document deleted successfully`);
 
         // Invalidate cache
-        cache.current.invalidate(`${collectionName}_${id}`);
-        cache.current.invalidate(`${collectionName}_all`);
+        cache.current.invalidate(`${collPath}_${id}`);
+        cache.current.invalidatePattern(collPath);
 
         setLoading(false);
         return true;
@@ -408,7 +435,52 @@ export function useFirestoreCRUD() {
         return false;
       }
     },
-    []
+    [auth.currentUser, getUserCollectionPath]
+  );
+
+  /**
+   * Delete multiple documents by IDs
+   */
+  const deleteDocumentsbyId = useCallback(
+    async (collectionName: string, ids: string[]) => {
+      if (!auth.currentUser) {
+        const errorMsg = "No authenticated user. Please sign in first.";
+        setError(errorMsg);
+        return false;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const collPath = getUserCollectionPath(collectionName);
+        console.log(`Batch deleting ${ids.length} documents from: ${collPath}`);
+
+        const batch = writeBatch(db);
+
+        ids.forEach((id) => {
+          const docRef = doc(db, collPath, id);
+          batch.delete(docRef);
+        });
+
+        await batch.commit();
+        console.log(`Batch delete completed successfully`);
+
+        // Invalidate cache
+        ids.forEach((id) => {
+          cache.current.invalidate(`${collPath}_${id}`);
+        });
+        cache.current.invalidatePattern(collPath);
+
+        setLoading(false);
+        return true;
+      } catch (err) {
+        handleError(err, "Delete Documents");
+        setLoading(false);
+        return false;
+      }
+    },
+    [auth.currentUser, getUserCollectionPath]
   );
 
   /**
@@ -416,91 +488,196 @@ export function useFirestoreCRUD() {
    */
   const subscribeToCollection = useCallback(
     (collectionName: string, options: SubscriptionOptions) => {
-      const subscriptionKey = `${collectionName}_${JSON.stringify(options)}`;
-
-      // Check if already subscribed
-      if (subscriptions.current.has(subscriptionKey)) {
-        console.warn(`Already subscribed to ${subscriptionKey}`);
+      if (!auth.currentUser) {
+        const errorMsg = "No authenticated user. Please sign in first.";
+        options.onError?.(errorMsg);
+        console.error(errorMsg);
         return () => {};
       }
 
-      const collectionRef = collection(db, collectionName);
-      const constraints: QueryConstraint[] = [];
+      try {
+        const collPath = getUserCollectionPath(collectionName);
+        const subscriptionKey = `${collPath}_${JSON.stringify(options)}`;
 
-      // Build query
-      if (options.where) {
-        options.where.forEach((w) => {
-          constraints.push(where(w.field, w.operator, w.value));
-        });
-      }
+        // Check if already subscribed
+        if (subscriptions.current.has(subscriptionKey)) {
+          console.warn(`Already subscribed to ${subscriptionKey}`);
+          return subscriptions.current.get(subscriptionKey)!;
+        }
 
-      if (options.orderBy) {
-        constraints.push(
-          orderBy(options.orderBy, options.orderDirection || "asc")
-        );
-      }
+        console.log(`Subscribing to: ${collPath}`);
+        const collectionRef = collection(db, collPath);
+        const constraints: QueryConstraint[] = [];
 
-      const limitCount = Math.min(options.limit || 100, 100);
-      constraints.push(limit(limitCount));
+        // Build query
+        if (options.where) {
+          options.where.forEach((w) => {
+            constraints.push(where(w.field, w.operator, w.value));
+          });
+        }
 
-      const q =
-        constraints.length > 0
-          ? query(collectionRef, ...constraints)
-          : query(collectionRef, limit(100));
+        if (options.orderBy) {
+          constraints.push(
+            orderBy(options.orderBy, options.orderDirection || "asc")
+          );
+        }
 
-      // Throttle updates
-      let lastUpdate = 0;
-      const throttleMs = 1000;
+        const limitCount = options.limit ? Math.min(options.limit, 1000) : 100;
+        constraints.push(limit(limitCount));
 
-      const unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          const now = Date.now();
-          if (now - lastUpdate < throttleMs) {
-            // Throttle: schedule update
-            if (throttleTimers.current.has(subscriptionKey)) {
-              clearTimeout(throttleTimers.current.get(subscriptionKey)!);
-            }
+        const q =
+          constraints.length > 0
+            ? query(collectionRef, ...constraints)
+            : query(collectionRef, limit(100));
 
-            const timer = setTimeout(() => {
+        // Throttle updates
+        let lastUpdate = 0;
+        const throttleMs = 1000;
+
+        const unsubscribe = onSnapshot(
+          q,
+          (snapshot) => {
+            const now = Date.now();
+            if (now - lastUpdate < throttleMs) {
+              // Throttle: schedule update
+              const existingTimer = throttleTimers.current.get(subscriptionKey);
+              if (existingTimer) {
+                clearTimeout(existingTimer);
+              }
+
+              const timer = setTimeout(() => {
+                const documents = snapshot.docs.map((doc) => ({
+                  id: doc.id,
+                  ...doc.data(),
+                }));
+                options.onUpdate(documents);
+                lastUpdate = Date.now();
+              }, throttleMs - (now - lastUpdate));
+
+              throttleTimers.current.set(subscriptionKey, timer);
+            } else {
+              // Update immediately
               const documents = snapshot.docs.map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
               }));
               options.onUpdate(documents);
-              lastUpdate = Date.now();
-            }, throttleMs - (now - lastUpdate));
-
-            throttleTimers.current.set(subscriptionKey, timer);
-          } else {
-            // Update immediately
-            const documents = snapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
-            options.onUpdate(documents);
-            lastUpdate = now;
+              lastUpdate = now;
+            }
+          },
+          (err) => {
+            const errorMsg = handleError(err, "Subscription");
+            options.onError?.(errorMsg);
           }
-        },
-        (err) => {
-          const errorMsg = handleError(err, "Subscription");
-          options.onError?.(errorMsg);
-        }
-      );
+        );
 
-      subscriptions.current.set(subscriptionKey, unsubscribe);
+        subscriptions.current.set(subscriptionKey, unsubscribe);
 
-      // Return unsubscribe function
-      return () => {
-        unsubscribe();
-        subscriptions.current.delete(subscriptionKey);
-        if (throttleTimers.current.has(subscriptionKey)) {
-          clearTimeout(throttleTimers.current.get(subscriptionKey)!);
-          throttleTimers.current.delete(subscriptionKey);
-        }
-      };
+        // Return unsubscribe function
+        return () => {
+          unsubscribe();
+          subscriptions.current.delete(subscriptionKey);
+          const timer = throttleTimers.current.get(subscriptionKey);
+          if (timer) {
+            clearTimeout(timer);
+            throttleTimers.current.delete(subscriptionKey);
+          }
+        };
+      } catch (err) {
+        const errorMsg = handleError(err, "Subscribe");
+        options.onError?.(errorMsg);
+        return () => {};
+      }
     },
-    []
+    [auth.currentUser, getUserCollectionPath]
+  );
+
+  /**
+   * Migrate/Update collection schema
+   */
+  const migrateCollection = useCallback(
+    async (
+      collectionName: string,
+      migration: {
+        addFields?: Record<string, any>;
+        removeFields?: string[];
+        transformData?: (doc: any) => any;
+      }
+    ) => {
+      if (!auth.currentUser) {
+        const errorMsg = "No authenticated user. Please sign in first.";
+        setError(errorMsg);
+        return false;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const collPath = getUserCollectionPath(collectionName);
+        console.log(`Migrating collection: ${collPath}`);
+
+        const collectionRef = collection(db, collPath);
+        const snapshot = await getDocs(query(collectionRef, limit(100)));
+
+        const batch = writeBatch(db);
+        let batchCount = 0;
+
+        for (const docSnap of snapshot.docs) {
+          let data = docSnap.data();
+
+          // Add new fields
+          if (migration.addFields) {
+            data = { ...data, ...migration.addFields };
+          }
+
+          // Remove fields
+          if (migration.removeFields) {
+            migration.removeFields.forEach((field) => {
+              delete data[field];
+            });
+          }
+
+          // Transform data
+          if (migration.transformData) {
+            data = migration.transformData(data);
+          }
+
+          // Update timestamp
+          data.updatedAt = Timestamp.now();
+
+          const docRef = doc(db, collPath, docSnap.id);
+          batch.set(docRef, data, { merge: true });
+
+          batchCount++;
+
+          // Commit batch every 500 documents
+          if (batchCount === 500) {
+            await batch.commit();
+            batchCount = 0;
+          }
+        }
+
+        // Commit remaining documents
+        if (batchCount > 0) {
+          await batch.commit();
+        }
+
+        // Invalidate cache for this collection
+        cache.current.invalidatePattern(collPath);
+
+        setLoading(false);
+        console.log(
+          `Migration completed for '${collectionName}': ${snapshot.docs.length} documents updated`
+        );
+        return true;
+      } catch (err) {
+        handleError(err, "Migration");
+        setLoading(false);
+        return false;
+      }
+    },
+    [auth.currentUser, getUserCollectionPath]
   );
 
   /**
@@ -509,7 +686,7 @@ export function useFirestoreCRUD() {
   const unsubscribeAll = useCallback(() => {
     subscriptions.current.forEach((unsub) => unsub());
     subscriptions.current.clear();
-    throttleTimers.current.forEach((timer:any) => clearTimeout(timer));
+    throttleTimers.current.forEach((timer) => clearTimeout(timer));
     throttleTimers.current.clear();
   }, []);
 
@@ -544,6 +721,7 @@ export function useFirestoreCRUD() {
     readDocuments,
     updateDocument,
     deleteDocument,
+    deleteDocumentsbyId,
     subscribeToCollection,
     unsubscribeAll,
     clearCache,
@@ -551,114 +729,3 @@ export function useFirestoreCRUD() {
     clearError: () => setError(null),
   };
 }
-
-// Example Usage:
-/*
-interface User {
-  name: string;
-  email: string;
-  age: number;
-  role: 'admin' | 'user';
-}
-
-function App() {
-  const {
-    loading,
-    error,
-    createCollection,
-    addDocument,
-    readDocById,
-    readDocuments,
-    updateDocument,
-    deleteDocument,
-    subscribeToCollection,
-    migrateCollection,
-  } = useFirestoreCRUD();
-
-  const [users, setUsers] = useState<User[]>([]);
-
-  useEffect(() => {
-    // Create/Register collection
-    createCollection('users');
-    
-    // Or with schema
-    createCollection({
-      name: 'users',
-      fields: {
-        name: 'string',
-        email: 'string',
-        age: 'number',
-        role: 'string',
-      },
-    });
-  }, []);
-
-  // Subscribe to real-time updates
-  useEffect(() => {
-    const unsubscribe = subscribeToCollection('users', {
-      onUpdate: (data) => setUsers(data as User[]),
-      onError: (err) => console.error(err),
-      where: [{ field: 'role', operator: '==', value: 'admin' }],
-      orderBy: 'name',
-      limit: 50,
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleAddUser = async () => {
-    const newUser = await addDocument<User>('users', {
-      name: 'John Doe',
-      email: 'john@example.com',
-      age: 30,
-      role: 'user',
-    });
-    console.log('Created:', newUser);
-  };
-
-  const handleReadUser = async (id: string) => {
-    const user = await readDocById<User>('users', id);
-    console.log('User:', user);
-  };
-
-  const handleReadAllUsers = async () => {
-    const allUsers = await readDocuments<User>('users', {
-      where: [{ field: 'age', operator: '>', value: 25 }],
-      orderBy: 'name',
-      limit: 10,
-    });
-    console.log('All users:', allUsers);
-  };
-
-  const handleUpdateUser = async (id: string) => {
-    await updateDocument<User>('users', id, { age: 31 });
-  };
-
-  const handleDeleteUser = async (id: string) => {
-    await deleteDocument('users', id);
-  };
-
-  const handleMigration = async () => {
-    await migrateCollection('users', {
-      addFields: { status: 'active', lastLogin: null },
-      removeFields: ['oldField'],
-      transformData: (doc) => ({
-        ...doc,
-        email: doc.email.toLowerCase(),
-      }),
-    });
-  };
-
-  return (
-    <div>
-      {loading && <p>Loading...</p>}
-      {error && <p>Error: {error}</p>}
-      <button onClick={handleAddUser}>Add User</button>
-      <button onClick={handleMigration}>Migrate Collection</button>
-      {users.map((user) => (
-        <div key={user.id}>{user.name}</div>
-      ))}
-    </div>
-  );
-}
-*/

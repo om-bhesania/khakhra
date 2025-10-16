@@ -84,7 +84,7 @@ function CustomerForm() {
     <div className="w-full space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
         <form
-          className="space-y-4 rounded-lg  p-4 bg-zinc-50 dark:bg-zinc-900 mt-12 w-full"
+          className="space-y-4 rounded-lg p-4 mt-12 w-full"
           onSubmit={(e) => {
             e.preventDefault();
             form.handleSubmit();
@@ -316,11 +316,7 @@ function CustomerForm() {
             selector={(state) => [state.canSubmit, state.isSubmitting]}
           >
             {([canSubmit, isSubmitting]) => (
-              <Button
-                type="submit"
-                disabled={!canSubmit}
-                className="bg-rose-600 text-white hover:bg-rose-700"
-              >
+              <Button type="submit" disabled={!canSubmit}>
                 {isSubmitting ? "Saving..." : "Save Customer"}
               </Button>
             )}

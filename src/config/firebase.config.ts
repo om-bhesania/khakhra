@@ -1,9 +1,8 @@
-// Import the functions you need from the SDKs you need
+// firebase.ts - Updated Firebase Configuration
+
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
 const {
   VITE_API_KEY,
@@ -36,9 +35,107 @@ const auth = getAuth(app);
 // Initialize Google Auth Provider
 const googleProvider = new GoogleAuthProvider();
 
-// Optional: Configure Google Provider settings
+// Configure Google Provider settings
 googleProvider.setCustomParameters({
-  prompt: "select_account", // Forces account selection even if one account is available
+  prompt: "select_account", // Forces account selection
 });
 
 export { app, db, auth, googleProvider };
+
+// ============================================
+// authService.ts - Authentication Functions
+// ============================================
+
+import {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut,
+  type User,
+} from "firebase/auth";
+
+// Google Sign-In
+export const signInWithGoogle = async (): Promise<User> => {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to sign in with Google");
+  }
+};
+
+// Email/Password Sign-In
+export const signInWithEmail = async (
+  email: string,
+  password: string
+): Promise<User> => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    return result.user;
+  } catch (error: any) {
+    const errorMessage =
+      error.code === "auth/user-not-found"
+        ? "User not found"
+        : error.code === "auth/wrong-password"
+        ? "Incorrect password"
+        : error.code === "auth/invalid-email"
+        ? "Invalid email address"
+        : error.code === "auth/user-disabled"
+        ? "This account has been disabled"
+        : error.code === "auth/invalid-credential"
+        ? "Invalid email or password"
+        : error.message || "Failed to sign in";
+    throw new Error(errorMessage);
+  }
+};
+
+// Email/Password Sign-Up
+export const signUpWithEmail = async (
+  email: string,
+  password: string
+): Promise<User> => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    return result.user;
+  } catch (error: any) {
+    const errorMessage =
+      error.code === "auth/email-already-in-use"
+        ? "Email already in use"
+        : error.code === "auth/weak-password"
+        ? "Password should be at least 6 characters"
+        : error.code === "auth/invalid-email"
+        ? "Invalid email address"
+        : error.message || "Failed to create account";
+    throw new Error(errorMessage);
+  }
+};
+
+// Send Password Reset Email
+export const resetPassword = async (email: string): Promise<void> => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (error: any) {
+    const errorMessage =
+      error.code === "auth/user-not-found"
+        ? "No account found with this email"
+        : error.code === "auth/invalid-email"
+        ? "Invalid email address"
+        : error.message || "Failed to send reset email";
+    throw new Error(errorMessage);
+  }
+};
+
+// Sign Out
+export const logout = async (): Promise<void> => {
+  try {
+    await signOut(auth);
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to sign out");
+  }
+};
+
+// Get Current User
+export const getCurrentUser = (): User | null => {
+  return auth.currentUser;
+};
