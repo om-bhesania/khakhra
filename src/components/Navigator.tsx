@@ -1,16 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { appRoutes, sidebarTitle } from "@/constants/appRoutes";
+import { useAuth } from "@/hooks/use-auth";
 import {
   ChevronDown,
   ChevronUp,
   Circle,
   LogOut,
-  Minus,
-  MoveDown,
+  Minus
 } from "lucide-react";
 import React, { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { useAuth } from "@/hooks/use-auth";
 import CustomBreadCrumbs from "./BreadCrumbsCustomUi";
 import { ModeToggle } from "./themeToggle";
 import {
@@ -30,7 +29,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "./ui/sidebar";
-import InitButton from "@/lib/initRole";
 
 type MenuIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 export type MenuItem = {

@@ -157,6 +157,7 @@ export const appRoutes: AppRoute[] = [
     path: "/roles",
     type: "private",
     icon: Shield,
+    hideSidebar: true,
     submenu: [
       {
         name: "Manage Roles",

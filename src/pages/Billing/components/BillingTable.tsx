@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/CustomTable";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
-import { toast } from "sonner";
 import { getAuth } from "firebase/auth";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { billingColumns } from "../Columns";
 
 type Bill = {

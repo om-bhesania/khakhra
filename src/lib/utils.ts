@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import { FilePen } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -24,7 +25,8 @@ function toDateFromUnknown(value: unknown): Date | null {
   // @ts-expect-error duck typing
   if (typeof value?.seconds === "number") {
     // @ts-expect-error duck typing
-    const ms = value.seconds * 1000 + Math.floor((value.nanoseconds ?? 0) / 1_000_000);
+    const ms =
+      value.seconds * 1000 + Math.floor((value.nanoseconds ?? 0) / 1_000_000);
     return new Date(ms);
   }
   if (value instanceof Date) return value;

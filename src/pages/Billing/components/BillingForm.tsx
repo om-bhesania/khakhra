@@ -1,3 +1,17 @@
+import { CustomerCombobox } from "@/components/ComboBox";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
+import { FileDown, Plus, Trash2 } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -6,19 +20,6 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Card } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { FileDown, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type LineItem = {
@@ -36,10 +37,15 @@ type BillingFormValues = {
   gstEnabled: boolean;
   gstPercent: number;
   lineItems: LineItem[];
+  exisitingCustomerData: {
+    id: string;
+    name: string;
+    phone: string;
+  };
 };
 
 const BillingForm = () => {
-  const { addDocument, readDocuments, readDocById, updateDocument } =
+  const { addDocument, readDocuments, readDocById, updateDocument, loading } =
     useFirestoreCRUD();
   const [values, setValues] = useState<BillingFormValues>({
     id: "",
@@ -49,11 +55,21 @@ const BillingForm = () => {
     gstEnabled: false,
     gstPercent: 18,
     lineItems: [],
+    exisitingCustomerData: {
+      id: "",
+      name: "",
+      phone: "",
+    },
   });
+
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [customerName, setCustomerName] = useState<string>("");
+  const [customerPhone, setCustomerPhone] = useState<string>("");
+
   const [idLocked, setIdLocked] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
-
+  const [custData, setCustData] = useState<any>([]);
   const todayKey = useMemo(() => {
     const d = new Date();
     const yy = String(d.getFullYear()).slice(-2);
@@ -62,18 +78,29 @@ const BillingForm = () => {
     return `${yy}${mm}${dd}`;
   }, []);
 
-  const generateInvoiceId = useCallback(async () => {
-    const items = await readDocuments<any>("bills", {
-      where: [{ field: "dateKey", operator: "==", value: todayKey }],
-    });
-    console.log("items", items);
-    const next = (items?.[0]?.sequence || 0) + 1;
+  // get customer data
+
+  const fetchCustomreData = async () => {
+    const custData = await readDocuments("customers");
+    console.log("custData", custData);
+    setCustData(custData);
+  };
+  useEffect(() => {
+    fetchCustomreData();
+  }, []);
+  // Updated generateInvoiceId - only READ, don't increment
+  const generateInvoiceId = useCallback(() => {
+    const storageKey = `invoice_sequence_${todayKey}`;
+    const storedSequence = localStorage.getItem(storageKey);
+    const lastSequence = storedSequence ? parseInt(storedSequence, 10) : 0;
+    const next = lastSequence + 1;
+
     const seq = String(next).padStart(4, "0");
     return { id: `INV/${todayKey}/${seq}`, sequence: next };
-  }, [readDocuments, todayKey]);
+  }, [todayKey]);
   useEffect(() => {
     (async () => {
-      const { id } = await generateInvoiceId();
+      const { id } = generateInvoiceId();
       setValues((v) => ({ ...v, id }));
 
       const inv = await readDocuments<any>("inventory", { limit: 100 });
@@ -85,6 +112,8 @@ const BillingForm = () => {
       setInventory(updatedInventory);
     })();
   }, [generateInvoiceId, readDocuments]);
+
+  // Add items in invoice
   const addLineItem = () => {
     setValues((v) => ({
       ...v,
@@ -135,6 +164,8 @@ const BillingForm = () => {
     setValues((v) => ({ ...v, [name]: type === "checkbox" ? checked : value }));
   };
 
+  // handdle submit
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -142,7 +173,7 @@ const BillingForm = () => {
       let seq = 0;
       let finalId = values.id;
       if (idLocked || !finalId) {
-        const g = await generateInvoiceId();
+        const g = generateInvoiceId();
         finalId = g.id;
         seq = g.sequence;
       }
@@ -157,12 +188,13 @@ const BillingForm = () => {
         }
       }
 
-      await addDocument("bills", {
+      const res = await addDocument("bills", {
         invoiceId: finalId,
         sequence: seq,
         dateKey: todayKey,
-        name: values.name,
-        number: values.number,
+        customerId: selectedCustomerId,
+        name: values.name || customerName,
+        number: values.number || customerPhone,
         note: values.note,
         gstEnabled: values.gstEnabled,
         gstPercent: Number(values.gstPercent) || 0,
@@ -171,19 +203,38 @@ const BillingForm = () => {
         subtotal,
         total,
         lineItems: values.lineItems,
+        exisitingCustomerData: {
+          id: selectedCustomerId,
+          name: customerName,
+          phone: customerPhone,
+        },
       });
+      console.log("res =====>", res);
+      // ONLY update localStorage AFTER successful bill creation
+      const storageKey = `invoice_sequence_${todayKey}`;
+      localStorage.setItem(storageKey, seq.toString());
 
       setSubmitting(false);
-      setIdLocked(true);
+      setIdLocked(false);
+
+      // Generate new invoice ID for the next bill
+      const nextInvoice = generateInvoiceId();
+
       setValues({
-        id: "",
+        id: nextInvoice.id,
         name: "",
         number: "",
         note: "",
         gstEnabled: false,
         gstPercent: 18,
         lineItems: [],
+        exisitingCustomerData: {
+          id: "",
+          name: "",
+          phone: "",
+        },
       });
+
       toast.success("Bill saved successfully");
     } catch (err: any) {
       toast.error(err?.message || "Failed to save bill");
@@ -212,12 +263,14 @@ const BillingForm = () => {
           <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium">Invoice ID</label>
             <div className="flex items-center gap-2">
-              <Input
-                name="id"
-                value={values.id}
-                onChange={onChange}
-                disabled={idLocked}
-              />
+              <div className="relative w-full">
+                <Input
+                  name="id"
+                  value={values.id}
+                  onChange={onChange}
+                  disabled={idLocked || loading}
+                />
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -229,16 +282,39 @@ const BillingForm = () => {
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Name</label>
-            <Input
+            {/* <Input
               name="name"
               value={values.name}
               onChange={onChange}
               required
+            /> */}
+            <CustomerCombobox
+              customers={custData}
+              value={selectedCustomerId}
+              onSelect={(customer) => {
+                if (customer) {
+                  setSelectedCustomerId(customer.id);
+                  setCustomerName(customer.name);
+                  setCustomerPhone(customer.number || "");
+                }
+              }}
+              onCreateNew={(name) => {
+                setSelectedCustomerId("");
+                setCustomerName(name);
+                setCustomerPhone("");
+              }}
+              placeholder="Select or search customer..."
+              searchPlaceholder="Type to search..."
+              allowCreateNew={true}
             />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Number</label>
-            <Input name="number" value={values.number} onChange={onChange} />
+            <Input
+              name="number"
+              value={customerPhone || values.number}
+              onChange={onChange}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium">Note</label>
