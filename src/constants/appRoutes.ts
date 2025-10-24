@@ -1,6 +1,6 @@
 import NotFound from "@/layout/NotFound";
 import { BillingAdd, BillingView } from "@/pages/Billing/Billing";
-import { CustomerAdd, CustomerView } from "@/pages/Customer/Customer";
+import { CustomerAdd, CustomerHistory, CustomerView } from "@/pages/Customer/Customer";
 import { InventoryAdd, InventoryView } from "@/pages/Inventory/Inventory";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -151,6 +151,14 @@ export const appRoutes: AppRoute[] = [
         element: CustomerAdd,
       },
     ],
+  },
+  {
+    name: "Customer",
+    path: "/customer/view/:id",
+    type: "private",
+    icon: User,
+    hideSidebar: true,
+    element: CustomerHistory,
   },
   {
     name: "Role Management",

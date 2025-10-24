@@ -71,11 +71,19 @@ export function DataTable<TData, TValue>({
           cell: ({ getValue }: { getValue: () => unknown }) => {
             const raw = getValue();
             // Only intercept if clearly a timestamp-like
-            // @ts-expect-error - duck typing
-            if (raw && (typeof raw?.toDate === 'function' || typeof raw?.seconds === 'number')) {
+            if (
+              raw &&
+              // @ts-expect-error - duck typing
+              (typeof raw?.toDate === "function" ||
+                // @ts-expect-error - duck typing
+                typeof raw?.seconds === "number")
+            ) {
               return <span>{formatTimestampString(raw)}</span>;
             }
-            return flexRender(col.cell ?? ((ctx: any) => String(ctx.getValue() ?? '')), { getValue } as any);
+            return flexRender(
+              col.cell ?? ((ctx: any) => String(ctx.getValue() ?? "")),
+              { getValue } as any
+            );
           },
         };
       }
@@ -220,14 +228,19 @@ export function DataTable<TData, TValue>({
             </Sheet>
           </div> */}
         </div>
-        <Table>
+    
           {loading ? (
-            <div className="flex items-center justify-center gap-3 p-8 w-full">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Loading...</span>
-            </div>
-          ) : (
             <>
+              <div className="p-8 w-full">
+                <div className="relative flex items-center justify-center flex-col gap-3 ">
+                <Loader2 className="size-20 animate-spin text-muted-foreground align-center" />
+                <span className="absolute top-1/2 left-1/2 translate-x-[-50%] translate-y-[-50%] !text-[8px]">Loading...</span>
+
+                </div>
+              </div>
+            </>
+          ) : (
+            <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
@@ -291,9 +304,8 @@ export function DataTable<TData, TValue>({
                   </TableRow>
                 )}
               </TableBody>
-            </>
+            </Table>
           )}
-        </Table>
         {/* Pagination */}
         {!loading ? (
           <div className="flex flex-col gap-2 border-t p-2 sm:flex-row sm:items-center sm:justify-between">

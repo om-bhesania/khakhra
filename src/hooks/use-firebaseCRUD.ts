@@ -168,7 +168,6 @@ export function useFirestoreCRUD() {
       typeof schema === "string" ? { name: schema, fields: {} } : schema;
 
     collections.current.set(collectionSchema.name, collectionSchema);
-    console.log(`Collection '${collectionSchema.name}' registered`);
 
     return collectionSchema.name;
   }, []);
@@ -187,7 +186,6 @@ export function useFirestoreCRUD() {
         }
 
         const collPath = getUserCollectionPath(collectionName);
-        console.log(`Adding document to: ${collPath}`);
 
         const collectionRef = collection(db, collPath);
 
@@ -291,9 +289,8 @@ export function useFirestoreCRUD() {
         setError(errorMsg);
         return [];
       }
-console.log("collectionName", collectionName);
       const collPath = getUserCollectionPath(collectionName);
-      console.log("collPath", collPath);
+
       const cacheKey = `${collPath}_all_${JSON.stringify(options || {})}`;
 
       // Check cache only if no filters
@@ -710,6 +707,31 @@ console.log("collectionName", collectionName);
       unsubscribeAll();
     };
   }, [unsubscribeAll]);
+  /**
+   * Force-refresh collection data manually (e.g., after delete/update)
+   */
+  const refreshData = useCallback(
+    async (collectionName: string) => {
+      try {
+        const collPath = getUserCollectionPath(collectionName);
+        // Invalidate cache for this collection
+        cache.current.invalidatePattern(collPath);
+        console.log(`Cache invalidated for ${collPath}`);
+
+        // Optionally, trigger a re-read to force UI refresh
+        const freshDocs = await readDocuments(collectionName);
+        console.log(
+          `Refreshed ${collectionName}: ${freshDocs.length} documents`
+        );
+
+        return freshDocs;
+      } catch (err) {
+        handleError(err, "Refresh Data");
+        return [];
+      }
+    },
+    [getUserCollectionPath, readDocuments]
+  );
 
   return {
     loading,
@@ -727,5 +749,6 @@ console.log("collectionName", collectionName);
     clearCache,
     getCollections,
     clearError: () => setError(null),
+    refreshData,
   };
 }

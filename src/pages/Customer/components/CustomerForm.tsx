@@ -1,16 +1,10 @@
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { useForm } from "@tanstack/react-form";
-import { ChevronDown, IndianRupee, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
 function CustomerForm() {
@@ -21,6 +15,14 @@ function CustomerForm() {
   const [showNewModeInput, setShowNewModeInput] = useState(false);
   const [newModeName, setNewModeName] = useState("");
   const [isAddingMode, setIsAddingMode] = useState(false);
+  const [nameFromUrl, setNameFromUrl] = useState<string>("");
+  const location = useLocation();
+  // Get name from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const name = urlParams.get("name");
+    setNameFromUrl(name || "");
+  }, []);
 
   // Load and subscribe payment modes
   useEffect(() => {
@@ -104,7 +106,7 @@ function CustomerForm() {
                   Name
                 </label>
                 <Input
-                  value={field.state.value}
+                  value={field.state.value || nameFromUrl}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
                   placeholder="Customer name"
@@ -140,168 +142,6 @@ function CustomerForm() {
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
                   placeholder="Contact number"
-                />
-                {field.state.meta.errors[0] && (
-                  <p className="text-xs text-rose-600">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
-            )}
-          </form.Field>
-
-          {/* Payment Mode with dropdown + inline add-new UI */}
-          <form.Field
-            name="paymentMode"
-            validators={{
-              onChange: ({ value }) =>
-                !value.trim() ? "Payment mode is required" : undefined,
-            }}
-          >
-            {(field) => (
-              <div className="space-y-1">
-                <label className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Payment Mode
-                </label>
-                {!showNewModeInput ? (
-                  <div className="flex gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full justify-between"
-                        >
-                          <span className="truncate">
-                            {field.state.value ||
-                              (isLoadingModes
-                                ? "Loading modes..."
-                                : "Select mode")}
-                          </span>
-                          <div className="inline-flex items-center gap-2">
-                            {isAddingMode ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : null}
-                            <ChevronDown className="h-4 w-4" />
-                          </div>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="start"
-                        className="max-h-64 overflow-auto w-[var(--radix-dropdown-menu-trigger-width)]"
-                      >
-                        {modeItems.length === 0 && (
-                          <DropdownMenuItem disabled>
-                            No modes yet
-                          </DropdownMenuItem>
-                        )}
-                        {modeItems.map((m) => (
-                          <DropdownMenuItem
-                            key={m}
-                            onClick={() => field.handleChange(m)}
-                          >
-                            {m}
-                          </DropdownMenuItem>
-                        ))}
-                        <DropdownMenuItem
-                          className="text-rose-600 font-medium"
-                          onClick={() => {
-                            setShowNewModeInput(true);
-                            setNewModeName("");
-                          }}
-                        >
-                          + Add new Mode
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      className="flex-1"
-                      value={newModeName}
-                      onChange={(e) => setNewModeName(e.target.value)}
-                      placeholder="Enter new mode name"
-                      contentRight={
-                        <>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => {
-                              setNewModeName("");
-                              setShowNewModeInput(false);
-                            }}
-                            disabled={isAddingMode}
-                            className="h-7 px-2 text-xs"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="default"
-                            onClick={async () => {
-                              const trimmed = newModeName.trim();
-                              if (!trimmed) return;
-                              try {
-                                setIsAddingMode(true);
-                                if (!modes.includes(trimmed)) {
-                                  await addDocument("paymentModes", {
-                                    name: trimmed,
-                                  });
-                                }
-                                field.handleChange(trimmed);
-                                setShowNewModeInput(false);
-                                setNewModeName("");
-                              } finally {
-                                setIsAddingMode(false);
-                              }
-                            }}
-                            disabled={isAddingMode}
-                            className="h-7 px-2 text-xs"
-                          >
-                            {isAddingMode ? (
-                              <span className="inline-flex items-center gap-1.5">
-                                <Loader2 className="h-3 w-3 animate-spin" />{" "}
-                                Adding...
-                              </span>
-                            ) : (
-                              "Add"
-                            )}
-                          </Button>
-                        </>
-                      }
-                    />
-                  </div>
-                )}
-                {field.state.meta.errors[0] && (
-                  <p className="text-xs text-rose-600">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
-            )}
-          </form.Field>
-
-          {/* Payment Amount */}
-          <form.Field
-            name="paymentAmount"
-            validators={{
-              onChange: ({ value }) =>
-                Number(value) > 0 ? undefined : "Amount must be greater than 0",
-            }}
-          >
-            {(field) => (
-              <div className="space-y-1">
-                <label className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Payment Amount
-                </label>
-                <Input
-                  value={String(field.state.value ?? "")}
-                  onChange={(e) => field.handleChange(Number(e.target.value))}
-                  onBlur={field.handleBlur}
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  contentLeft={<IndianRupee className="h-3.5 w-3.5" />}
                 />
                 {field.state.meta.errors[0] && (
                   <p className="text-xs text-rose-600">

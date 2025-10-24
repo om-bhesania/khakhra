@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import Swal from "sweetalert2";
 import {
   Select,
   SelectContent,
@@ -21,12 +22,21 @@ import {
   type FormEvent,
 } from "react";
 import { toast } from "sonner";
-
+import { useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown, IndianRupee, Loader2 } from "lucide-react";
+import { invoiceTemplate } from "./printInvoiceTemplate";
 type LineItem = {
   itemId: string;
   itemName: string;
   quantity: number;
   rate: number;
+  fullItem?: any; // ✅ optional, full product data
 };
 
 type BillingFormValues = {
@@ -37,6 +47,7 @@ type BillingFormValues = {
   gstEnabled: boolean;
   gstPercent: number;
   lineItems: LineItem[];
+  paymentMode: string;
   exisitingCustomerData: {
     id: string;
     name: string;
@@ -45,8 +56,14 @@ type BillingFormValues = {
 };
 
 const BillingForm = () => {
-  const { addDocument, readDocuments, readDocById, updateDocument, loading } =
-    useFirestoreCRUD();
+  const {
+    addDocument,
+    readDocuments,
+    readDocById,
+    updateDocument,
+    loading,
+    subscribeToCollection,
+  } = useFirestoreCRUD();
   const [values, setValues] = useState<BillingFormValues>({
     id: "",
     name: "",
@@ -54,6 +71,7 @@ const BillingForm = () => {
     note: "",
     gstEnabled: false,
     gstPercent: 18,
+    paymentMode: "",
     lineItems: [],
     exisitingCustomerData: {
       id: "",
@@ -65,11 +83,16 @@ const BillingForm = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
   const [customerPhone, setCustomerPhone] = useState<string>("");
-
+  const [modes, setModes] = useState<string[]>([]);
+  const [isLoadingModes, setIsLoadingModes] = useState(false);
+  const [showNewModeInput, setShowNewModeInput] = useState(false);
+  const [newModeName, setNewModeName] = useState("");
+  const [isAddingMode, setIsAddingMode] = useState(false);
   const [idLocked, setIdLocked] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
   const [custData, setCustData] = useState<any>([]);
+  const [Loading, setLoading] = useState<boolean>(false);
   const todayKey = useMemo(() => {
     const d = new Date();
     const yy = String(d.getFullYear()).slice(-2);
@@ -82,36 +105,89 @@ const BillingForm = () => {
 
   const fetchCustomreData = async () => {
     const custData = await readDocuments("customers");
-    console.log("custData", custData);
     setCustData(custData);
   };
   useEffect(() => {
     fetchCustomreData();
   }, []);
-  // Updated generateInvoiceId - only READ, don't increment
-  const generateInvoiceId = useCallback(() => {
-    const storageKey = `invoice_sequence_${todayKey}`;
-    const storedSequence = localStorage.getItem(storageKey);
-    const lastSequence = storedSequence ? parseInt(storedSequence, 10) : 0;
-    const next = lastSequence + 1;
+  const modeItems = useMemo(
+    () => modes.sort((a, b) => a.localeCompare(b)),
+    [modes]
+  );
+  const getMostRecentBill = useCallback(async () => {
+    const bills = await readDocuments("bills");
 
-    const seq = String(next).padStart(4, "0");
-    return { id: `INV/${todayKey}/${seq}`, sequence: next };
-  }, [todayKey]);
+    if (!bills || bills.length === 0) return null;
+
+    // Find most recent by createdAt
+    const mostRecent = bills.reduce((prev, curr) => {
+      const prevTime = prev?.createdAt?.seconds || 0;
+      const currTime = curr?.createdAt?.seconds || 0;
+      return currTime > prevTime ? curr : prev;
+    });
+
+    return mostRecent;
+  }, []);
+
+  const generateInvoiceId = useCallback(
+    async (recentBillId?: string) => {
+      let newSequence = "0001";
+
+      if (recentBillId) {
+        try {
+          const parts = recentBillId.split("/");
+          const lastSeq = parseInt(parts[2], 10);
+          newSequence = String(lastSeq + 1).padStart(4, "0");
+        } catch (err) {
+          console.error("Failed to parse last invoice ID:", err);
+        }
+      }
+console.log("newSequence", newSequence);
+      return `INV/${todayKey}/${newSequence}`;
+    },
+    [todayKey]
+  );
+
   useEffect(() => {
     (async () => {
-      const { id } = generateInvoiceId();
-      setValues((v) => ({ ...v, id }));
+      setLoading(true);
 
-      const inv = await readDocuments<any>("inventory", { limit: 100 });
+      const mostRecentBill = await getMostRecentBill();
+      const recentInvoiceId = mostRecentBill?.invoiceId;
 
-      const updatedInventory = inv.map((item) =>
-        item.quantity === 0 ? { name: "No Items Left" } : item
+      const newInvoiceId = await generateInvoiceId(recentInvoiceId);
+
+      // Set invoice id into form values
+      setValues((v) => ({ ...v, id: newInvoiceId }));
+
+      // Fetch inventory (optional)
+      const inv = await readDocuments("inventory", { limit: 100 });
+      const updatedInventory = inv.map((item: any) =>
+        item.quantity === 0 ? { ...item, name: "No Items Left" } : item
       );
 
       setInventory(updatedInventory);
+      setLoading(false);
     })();
-  }, [generateInvoiceId, readDocuments]);
+  }, [getMostRecentBill, generateInvoiceId]);
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    (async () => {
+      setIsLoadingModes(true);
+      const initial = await readDocuments<{ name: string }>("paymentModes");
+      setModes(initial.map((m) => String((m as any).name)).filter(Boolean));
+      setIsLoadingModes(false);
+
+      unsub = subscribeToCollection("paymentModes", {
+        onUpdate: (data: Array<{ name: string }>) => {
+          setModes(data.map((d) => String(d.name)).filter(Boolean));
+        },
+      } as any);
+    })();
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
+  }, [readDocuments, subscribeToCollection]);
 
   // Add items in invoice
   const addLineItem = () => {
@@ -165,17 +241,19 @@ const BillingForm = () => {
   };
 
   // handdle submit
-
+  const test = generateInvoiceId();
+console.log("====>0",test)
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
       let seq = 0;
-      let finalId = values.id;
+      let finalId: string = values.id;
+
       if (idLocked || !finalId) {
-        const g = generateInvoiceId();
-        finalId = g.id;
-        seq = g.sequence;
+        finalId = await generateInvoiceId(); // await here
+        const parts = finalId.split("/"); // ["INV", "yyMMdd", "0001"]
+        seq = parseInt(parts[2], 10) || 0;
       }
 
       for (const li of values.lineItems) {
@@ -189,7 +267,7 @@ const BillingForm = () => {
       }
 
       const res = await addDocument("bills", {
-        invoiceId: finalId,
+        invoiceId: values.id ||finalId,
         sequence: seq,
         dateKey: todayKey,
         customerId: selectedCustomerId,
@@ -202,6 +280,7 @@ const BillingForm = () => {
         sgst,
         subtotal,
         total,
+        paymentMode: values.paymentMode, // ✅ ADD THIS LINE
         lineItems: values.lineItems,
         exisitingCustomerData: {
           id: selectedCustomerId,
@@ -209,6 +288,7 @@ const BillingForm = () => {
           phone: customerPhone,
         },
       });
+
       console.log("res =====>", res);
       // ONLY update localStorage AFTER successful bill creation
       const storageKey = `invoice_sequence_${todayKey}`;
@@ -218,14 +298,15 @@ const BillingForm = () => {
       setIdLocked(false);
 
       // Generate new invoice ID for the next bill
-      const nextInvoice = generateInvoiceId();
-
+      const nextInvoice: any = generateInvoiceId();
+console.log("nextInvoice", nextInvoice);
       setValues({
         id: nextInvoice.id,
         name: "",
         number: "",
         note: "",
         gstEnabled: false,
+        paymentMode: "",
         gstPercent: 18,
         lineItems: [],
         exisitingCustomerData: {
@@ -234,7 +315,7 @@ const BillingForm = () => {
           phone: "",
         },
       });
-
+      nav("/billing/view");
       toast.success("Bill saved successfully");
     } catch (err: any) {
       toast.error(err?.message || "Failed to save bill");
@@ -242,19 +323,30 @@ const BillingForm = () => {
     }
   };
 
-  const printInvoice = () => {
-    const printContent = document.getElementById("printable-invoice");
-    if (!printContent) return;
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(
-      `<!doctype html><html><head><title>${values.id}</title><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/index.css" /></head><body>${printContent.innerHTML}</body></html>`
-    );
-    win.document.close();
-    win.focus();
-    win.print();
-    win.close();
+  const printInvoice = (values: any) => {
+    console.log("values", values);
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const htmlContent = invoiceTemplate(values);
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>Invoice - ${values.invoiceId}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1"/>
+        </head>
+        <body>${htmlContent}</body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
   };
+  const nav = useNavigate();
 
   return (
     <Card className="p-4">
@@ -267,7 +359,7 @@ const BillingForm = () => {
                 <Input
                   name="id"
                   value={values.id}
-                  onChange={onChange}
+                  onChange={(e) => setValues({ ...values, id: e.target.value })}
                   disabled={idLocked || loading}
                 />
               </div>
@@ -302,10 +394,12 @@ const BillingForm = () => {
                 setSelectedCustomerId("");
                 setCustomerName(name);
                 setCustomerPhone("");
+                nav(`/customer/add?name=${name}`);
               }}
               placeholder="Select or search customer..."
               searchPlaceholder="Type to search..."
               allowCreateNew={true}
+              createNewText="Add New Customer"
             />
           </div>
           <div>
@@ -341,12 +435,15 @@ const BillingForm = () => {
                   value={li.itemId}
                   onValueChange={(val: string) => {
                     const it = inventory.find((i) => i.id === val);
-                    console.log("it", it);
-                    setLineItem(idx, {
-                      itemId: val,
-                      itemName: it ? it.name ?? it.category ?? it.id : "",
-                      rate: it ? Number(it.sellingPrice) || 0 : li.rate,
-                    });
+                    if (it) {
+                      setLineItem(idx, {
+                        ...li,
+                        itemId: val,
+                        itemName: it.name ?? it.category ?? it.id,
+                        rate: Number(it.sellingPrice) || 0,
+                        fullItem: it, // ✅ store full item data here
+                      });
+                    }
                   }}
                 >
                   <SelectTrigger>
@@ -419,6 +516,118 @@ const BillingForm = () => {
           </div>
         </div>
 
+        {/* Payment Mode */}
+        <div>
+          <label className="mb-1 block text-sm font-medium">Payment Mode</label>
+          {!showNewModeInput ? (
+            <div className="flex gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-between"
+                  >
+                    <span className="truncate">
+                      {values.paymentMode ||
+                        (isLoadingModes ? "Loading modes..." : "Select mode")}
+                    </span>
+                    <div className="inline-flex items-center gap-2">
+                      {isAddingMode ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : null}
+                      <ChevronDown className="h-4 w-4" />
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="max-h-64 overflow-auto w-[var(--radix-dropdown-menu-trigger-width)]"
+                >
+                  {modeItems.length === 0 && (
+                    <DropdownMenuItem disabled>No modes yet</DropdownMenuItem>
+                  )}
+                  {modeItems.map((m) => (
+                    <DropdownMenuItem
+                      key={m}
+                      onClick={() =>
+                        setValues((v) => ({ ...v, paymentMode: m }))
+                      }
+                    >
+                      {m}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuItem
+                    className="text-rose-600 font-medium"
+                    onClick={() => {
+                      setShowNewModeInput(true);
+                      setNewModeName("");
+                    }}
+                  >
+                    + Add new Mode
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Input
+                className="flex-1"
+                value={newModeName}
+                onChange={(e) => setNewModeName(e.target.value)}
+                placeholder="Enter new mode name"
+                contentRight={
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setNewModeName("");
+                        setShowNewModeInput(false);
+                      }}
+                      disabled={isAddingMode}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      onClick={async () => {
+                        const trimmed = newModeName.trim();
+                        if (!trimmed) return;
+                        try {
+                          setIsAddingMode(true);
+                          if (!modes.includes(trimmed)) {
+                            await addDocument("paymentModes", {
+                              name: trimmed,
+                            });
+                          }
+                          setValues((v) => ({ ...v, paymentMode: trimmed }));
+                          setShowNewModeInput(false);
+                          setNewModeName("");
+                        } finally {
+                          setIsAddingMode(false);
+                        }
+                      }}
+                      disabled={isAddingMode}
+                      className="h-7 px-2 text-xs"
+                    >
+                      {isAddingMode ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Adding...
+                        </span>
+                      ) : (
+                        "Add"
+                      )}
+                    </Button>
+                  </>
+                }
+              />
+            </div>
+          )}
+        </div>
+
         {/* GST */}
         <div className="flex items-center gap-2 pt-2">
           <Checkbox
@@ -457,7 +666,11 @@ const BillingForm = () => {
         </div>
 
         <div className="flex items-center justify-between">
-          <Button type="button" variant="outline" onClick={printInvoice}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => printInvoice(values)}
+          >
             <FileDown className="size-4" />
             Print Invoice
           </Button>

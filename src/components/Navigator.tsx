@@ -1,17 +1,13 @@
 import { Button } from "@/components/ui/button";
+import { auth } from "@/config/firebase.config";
 import { appRoutes, sidebarTitle } from "@/constants/appRoutes";
 import { useAuth } from "@/hooks/use-auth";
-import {
-  ChevronDown,
-  ChevronUp,
-  Circle,
-  LogOut,
-  Minus
-} from "lucide-react";
-import React, { useState } from "react";
+import { ChevronDown, ChevronUp, Circle, LogOut, Minus } from "lucide-react";
+import React, { useEffect, useLayoutEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import CustomBreadCrumbs from "./BreadCrumbsCustomUi";
 import { ModeToggle } from "./themeToggle";
+import { Avatar, AvatarFallback } from "./ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -29,6 +25,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "./ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 type MenuIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 export type MenuItem = {
@@ -78,6 +75,15 @@ function Navigator() {
   const isActive = (url?: string) => !!url && location.pathname === url;
   const isGroupActive = (item: MenuItem) =>
     !!item.submenu?.some((s) => isActive(s.url));
+  const userData = auth.currentUser;
+
+  const handleResize = () => {
+    const sidebarLeft =
+      state === "collapsed" && !isMobile ? "left-[48px]" : "left-[257px]";
+
+    return sidebarLeft;
+  };
+ 
 
   return (
     <>
@@ -97,8 +103,8 @@ function Navigator() {
             }
           }}
         >
-          <SidebarHeader className="min-h-[45px] p-0">
-            <span className="inline-flex items-center justify-center  h-full px-2 text-sm font-bold border-b border-gray-200">
+          <SidebarHeader className="min-h-[45px] p-0 !border-b dark:border-gray-700">
+            <span className="inline-flex items-center justify-center  h-full px-2 text-sm font-bold border-b">
               {state === "collapsed" ? appInitials : appTitle}
             </span>
           </SidebarHeader>
@@ -183,14 +189,35 @@ function Navigator() {
           <SidebarRail />
         </Sidebar>
       </nav>
-      <SidebarInset>
-        <div className="flex items-center gap-2 p-2 border-b">
-          <SidebarTrigger />
-          <div className="text-sm font-medium">
-            <CustomBreadCrumbs />
+      <SidebarInset className=" transition duration-300 ease-in-out">
+        <div
+          className={`flex items-center justify-between gap-2 p-2 border-b transition duration-300 ease-in-out fixed top-0 ${handleResize()} right-0 bg-white dark:bg-[#18181B] z-[10]`}
+        >
+          <div className="flex items-center gap-2">
+            <SidebarTrigger />
+            <div className="text-sm font-medium">
+              <CustomBreadCrumbs />
+            </div>
+          </div>
+          <div className="self-end">
+            <Tooltip delayDuration={500}>
+              <TooltipTrigger>
+                <Avatar slot="button" className="h-6 w-6">
+                  <AvatarFallback>
+                    <span className="text-xs font-medium">
+                      {userData?.email
+                        ?.split("@")[0]
+                        ?.slice(0, 2)
+                        .toUpperCase()}
+                    </span>
+                  </AvatarFallback>
+                </Avatar>
+              </TooltipTrigger>
+              <TooltipContent>{userData?.email}</TooltipContent>
+            </Tooltip>
           </div>
         </div>
-        <div className="container">
+        <div className="container mt-[50px]">
           <Outlet />
         </div>
       </SidebarInset>

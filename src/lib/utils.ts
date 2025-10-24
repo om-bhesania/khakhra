@@ -24,8 +24,8 @@ function toDateFromUnknown(value: unknown): Date | null {
   // Firestore Timestamp-like { seconds, nanoseconds }
   // @ts-expect-error duck typing
   if (typeof value?.seconds === "number") {
-    // @ts-expect-error duck typing
     const ms =
+      // @ts-expect-error duck typing
       value.seconds * 1000 + Math.floor((value.nanoseconds ?? 0) / 1_000_000);
     return new Date(ms);
   }

@@ -1,72 +1,51 @@
 import { DataTable } from "@/components/CustomTable";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { customerColumns } from "../Columns";
 import { getAuth } from "firebase/auth";
 
 function CustomerTable() {
-  const [data, setData] = useState<any>([]);
+  const [data, setData] = useState<any[]>([]);
   const { readDocuments, error } = useFirestoreCRUD();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const auth = getAuth();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-
-        // Check authentication
-        const user = auth.currentUser;
-        console.log("=== Customer Fetch Debug ===");
-        console.log("Current User:", user?.uid);
-        console.log("User Email:", user?.email);
-
-        if (!user) {
-          toast.error("Not authenticated. Please sign in.");
-          setIsLoading(false);
-          return;
-        }
-
-        const collections = await readDocuments("customers");
-
-        if (collections.length === 0) {
-          console.warn("⚠️ No documents found in customers collection");
-          toast.warning("No customers found. Add some data first.");
-        } else {
-          console.log("✅ First document:", collections[0]);
-          toast.success(`Loaded ${collections.length} customers`);
-        }
-
-        setData(collections);
-      } catch (error) {
-        console.error("❌ Error fetching customers:", error);
-        toast.error("Error fetching customers: " + (error as Error).message);
-      } finally {
-        setIsLoading(false);
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        toast.error("Not authenticated. Please sign in.");
+        return;
       }
-    };
+      const collections = await readDocuments("customers");
 
-    // Only fetch if user is authenticated
-    if (auth.currentUser) {
-      fetchData();
-    } else {
-      console.warn("⚠️ No authenticated user, waiting...");
-      toast.error("Please sign in to view customers");
+      // Create a new array reference to trigger re-render
+      setData([...collections]);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error fetching customers");
+    } finally {
+      setIsLoading(false);
     }
-  }, [auth.currentUser]);
+  }, [auth.currentUser, readDocuments]);
 
-  // Show hook error if any
   useEffect(() => {
-    if (error) {
-      console.error("Hook Error:", error);
-      toast.error(error);
-    }
+    if (auth.currentUser) fetchData();
+  }, [auth.currentUser, fetchData]);
+
+  useEffect(() => {
+    if (error) toast.error(error);
   }, [error]);
 
   return (
     <div>
-      <DataTable columns={customerColumns} data={data} loading={isLoading} />
+      <DataTable
+        columns={customerColumns(setData)} // pass setData here
+        data={data}
+        loading={isLoading}
+      />
     </div>
   );
 }

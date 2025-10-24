@@ -1,4 +1,4 @@
-// firebase.ts - Updated Firebase Configuration
+// firebase.config.ts - Updated Firebase Configuration
 
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
@@ -52,14 +52,34 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signOut,
+  updateProfile,
   type User,
 } from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
 // Google Sign-In
 export const signInWithGoogle = async (): Promise<User> => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    const user = result.user;
+
+    // Check if user document exists in Firestore, if not create one
+    const userDocRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (!userDoc.exists()) {
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        role: "user", // default role
+        provider: "google",
+        createdAt: new Date(),
+      });
+    }
+
+    return user;
   } catch (error: any) {
     throw new Error(error.message || "Failed to sign in with Google");
   }
@@ -93,11 +113,31 @@ export const signInWithEmail = async (
 // Email/Password Sign-Up
 export const signUpWithEmail = async (
   email: string,
-  password: string
+  password: string,
+  displayName: string
 ): Promise<User> => {
   try {
+    // Create user account
     const result = await createUserWithEmailAndPassword(auth, email, password);
-    return result.user;
+    const user = result.user;
+
+    // Update Firebase Auth profile with display name
+    await updateProfile(user, {
+      displayName: displayName,
+    });
+
+    // Store additional user data in Firestore
+    await setDoc(doc(db, "users", user.uid), {
+      uid: user.uid,
+      email: email,
+      displayName: displayName,
+      photoURL: null,
+      role: "user", // default role
+      provider: "email",
+      createdAt: new Date(),
+    });
+
+    return user;
   } catch (error: any) {
     const errorMessage =
       error.code === "auth/email-already-in-use"
@@ -138,4 +178,45 @@ export const logout = async (): Promise<void> => {
 // Get Current User
 export const getCurrentUser = (): User | null => {
   return auth.currentUser;
+};
+
+// Get Current User Data with Firestore details
+export const getCurrentUserData = async () => {
+  const user = auth.currentUser;
+
+  if (!user) {
+    return null;
+  }
+
+  try {
+    // Get additional user data from Firestore
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+
+    if (userDoc.exists()) {
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        ...userDoc.data(), // includes role, createdAt, etc.
+      };
+    } else {
+      // Return basic auth data if Firestore document doesn't exist
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+      };
+    }
+  } catch (error) {
+    console.error("Error fetching user data:", error);
+    // Return basic auth data on error
+    return {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+    };
+  }
 };
