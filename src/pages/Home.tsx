@@ -277,7 +277,7 @@ const Home = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               Sales Dashboard
             </h1>
             <p className="text-gray-500 mt-1">Profit & Loss Analytics</p>
@@ -305,16 +305,16 @@ const Home = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
                 Total Revenue
               </CardTitle>
               <IndianRupee className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">
                 ₹{analytics.totalRevenue.toFixed(2)}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 dark:text-white">
                 Total money received from customers
               </p>
             </CardContent>
@@ -322,16 +322,16 @@ const Home = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
                 Total Cost
               </CardTitle>
               <Package className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
                 ₹{analytics.totalCost.toFixed(2)}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 dark:text-white">
                 Money spent on making products
               </p>
             </CardContent>
@@ -339,7 +339,7 @@ const Home = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
                 Total Profit
               </CardTitle>
               {analytics.totalProfit >= 0 ? (
@@ -356,7 +356,7 @@ const Home = () => {
               >
                 ₹{analytics.totalProfit.toFixed(2)}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 dark:text-white">
                 Money you earned after expenses
               </p>
             </CardContent>
@@ -364,16 +364,16 @@ const Home = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
                 Profit Margin
               </CardTitle>
               <Percent className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
                 {analytics.profitMargin}%
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 dark:text-white">
                 Profit percentage on each sale
               </p>
             </CardContent>
@@ -381,32 +381,32 @@ const Home = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
                 Items Sold
               </CardTitle>
               <ShoppingCart className="h-4 w-4 text-cyan-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
                 {analytics.totalItemsSold}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 dark:text-white">
                 Number of products sold
               </p>
             </CardContent>
           </Card>
           <Card className="!gap-2">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
                 Inventory Value
               </CardTitle>
               <Package className="h-4 w-4 text-indigo-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
                 ₹{analytics.totalInventoryValue}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 dark:text-white">
                 Total value of remaining stock
               </p>
             </CardContent>
@@ -624,7 +624,7 @@ const Home = () => {
                             <span className="font-medium">{cat.category}</span>
                           </div>
                           {/* Future: Display flavors here */}
-                          {/* <div className="text-xs text-gray-500 mt-1">
+                          {/* <div className="text-xs text-gray-500 mt-1 dark:text-white">
                             {Object.keys(cat.flavors || {}).join(', ')}
                           </div> */}
                         </td>
@@ -714,7 +714,7 @@ const Home = () => {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-gray-500 mt-1 dark:text-white">
                             {invoice.invoiceId || "N/A"} •{" "}
                             {invoice.lineItems?.length || 0} items •{" "}
                             {invoice.paymentMode || "Cash"}
@@ -760,7 +760,7 @@ const Home = () => {
                   <p className="text-xl font-bold text-blue-600">
                     {analytics.categories[0]?.category}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-1 dark:text-white">
                     {analytics.categories[0]?.quantity} units sold
                   </p>
                 </div>
@@ -777,7 +777,7 @@ const Home = () => {
                       )?.category
                     }
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-1 dark:text-white">
                     ₹
                     {analytics.categories
                       .reduce(
@@ -799,7 +799,7 @@ const Home = () => {
                       2
                     )}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-1 dark:text-white">
                     {filteredInvoices.length} total orders
                   </p>
                 </div>
