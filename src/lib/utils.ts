@@ -1,5 +1,4 @@
 import { clsx, type ClassValue } from "clsx";
-import { FilePen } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -60,3 +59,9 @@ export function formatTimestampString(value: unknown) {
     return date.toLocaleString("en-IN");
   }
 }
+
+export const genCsvFileName = (baseName: string) => {
+  const currentTime = new Date().toLocaleString().replace(/[:\/\\, ]+/g, "_");
+  const csvFileName = `${baseName}_${currentTime}.csv`;
+  return csvFileName;
+};

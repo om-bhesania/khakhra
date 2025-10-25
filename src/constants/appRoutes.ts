@@ -161,6 +161,14 @@ export const appRoutes: AppRoute[] = [
     element: CustomerHistory,
   },
   {
+    name: "Settings",
+    path: "/settings",
+    type: "private",
+    icon: SettingIcon,
+    hideSidebar: true,
+    element: Settings,
+  },
+  {
     name: "Role Management",
     path: "/roles",
     type: "private",

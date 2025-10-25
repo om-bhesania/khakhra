@@ -1,13 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import usePreviousLocation from "@/hooks/use-prevlocation";
 import { ArrowLeft, Home } from "lucide-react";
 import { type JSX } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 export default function NotFound(): JSX.Element {
-  const navigate = useNavigate(); 
-  const previousLocation = usePreviousLocation();
+  const navigate = useNavigate();
 
   // Go back to previous route if possible, otherwise go home
   function handleBack() {
@@ -36,7 +34,7 @@ export default function NotFound(): JSX.Element {
             <p className="mt-4 text-muted-foreground">
               We couldn’t find{" "}
               <span className="font-medium text-foreground">
-               the requested route
+                the requested route
               </span>
               . It may have been moved or removed.
             </p>

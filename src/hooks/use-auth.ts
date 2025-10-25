@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
 import { signOut, type User } from 'firebase/auth';
-import { auth } from '../config/firebase.config';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { auth } from '../config/firebase.config';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);

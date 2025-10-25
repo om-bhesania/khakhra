@@ -1,5 +1,4 @@
-import { EyeIcon } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { useState } from "react";
 import {
   Command,
   CommandEmpty,
@@ -7,7 +6,7 @@ import {
   CommandInput,
   CommandList,
 } from "./ui/command";
-import { useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 interface CustomPopOverProps {
 trigger: any

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { PermissionMatrix } from "@/components/PermissionMatrix";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -6,25 +7,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { useRBAC } from "@/hooks/use-rbac";
-import { PermissionMatrix } from "@/components/PermissionMatrix";
-import type {
-  ModulePermission,
-  Permission,
-  Role,
-  RoleType,
-} from "@/types/rbac";
-import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
-import { Loader2, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -35,8 +17,25 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useCurrentUserRole } from "@/hooks/use-currentUserRole";
+import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
+import { useRBAC } from "@/hooks/use-rbac";
+import type {
+  ModulePermission,
+  Permission,
+  Role
+} from "@/types/rbac";
+import { Loader2, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 const RoleManagement = () => {
   const { role: currentUserRole, loading: userLoading } = useCurrentUserRole();

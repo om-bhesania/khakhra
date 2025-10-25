@@ -2,8 +2,13 @@ import { CustomerCombobox } from "@/components/ComboBox";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import Swal from "sweetalert2";
 import {
   Select,
   SelectContent,
@@ -12,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
-import { FileDown, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -21,15 +26,8 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChevronDown, IndianRupee, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { invoiceTemplate } from "./printInvoiceTemplate";
 type LineItem = {
   itemId: string;
@@ -91,8 +89,7 @@ const BillingForm = () => {
   const [idLocked, setIdLocked] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
-  const [custData, setCustData] = useState<any>([]);
-  const [Loading, setLoading] = useState<boolean>(false);
+  const [custData, setCustData] = useState<any>([]); 
   const todayKey = useMemo(() => {
     const d = new Date();
     const yy = String(d.getFullYear()).slice(-2);
@@ -149,8 +146,7 @@ console.log("newSequence", newSequence);
   );
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
+    (async () => { 
 
       const mostRecentBill = await getMostRecentBill();
       const recentInvoiceId = mostRecentBill?.invoiceId;
@@ -166,8 +162,7 @@ console.log("newSequence", newSequence);
         item.quantity === 0 ? { ...item, name: "No Items Left" } : item
       );
 
-      setInventory(updatedInventory);
-      setLoading(false);
+      setInventory(updatedInventory); 
     })();
   }, [getMostRecentBill, generateInvoiceId]);
   useEffect(() => {

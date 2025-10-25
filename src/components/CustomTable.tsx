@@ -27,17 +27,24 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
 import { formatTimestampString } from "@/lib/utils";
+import { exportToCsv } from "@/lib/exportasCsv";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   loading?: boolean;
+  csvData?: any;
+  csvHeader?: any;
+  csvFileName?: string;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   loading = false,
+  csvData,
+  csvHeader,
+  csvFileName = "data_export.csv",
 }: DataTableProps<TData, TValue>) {
   // Enhance columns: auto-format Created At columns and Timestamp-like values
   const enhancedColumns = React.useMemo(() => {
@@ -144,6 +151,13 @@ export function DataTable<TData, TValue>({
               contentLeft={<Search className="size-4 text-muted-foreground" />}
             />
           </div>
+          <div className="">
+            <Button
+              onClick={() => exportToCsv(csvData, csvHeader, csvFileName)}
+            >
+              Export to Csv
+            </Button>
+          </div>
           {/* FILTERS uncomment to add filters */}
           {/* <div className="flex items-center gap-2">
             <Sheet>
@@ -228,84 +242,85 @@ export function DataTable<TData, TValue>({
             </Sheet>
           </div> */}
         </div>
-    
-          {loading ? (
-            <>
-              <div className="p-8 w-full">
-                <div className="relative flex items-center justify-center flex-col gap-3 ">
-                <Loader2 className="size-20 animate-spin text-muted-foreground align-center" />
-                <span className="absolute top-1/2 left-1/2 translate-x-[-50%] translate-y-[-50%] !text-[8px]">Loading...</span>
 
-                </div>
+        {loading ? (
+          <>
+            <div className="p-8 w-full">
+              <div className="relative flex items-center justify-center flex-col gap-3 ">
+                <Loader2 className="size-20 animate-spin text-muted-foreground align-center" />
+                <span className="absolute top-1/2 left-1/2 translate-x-[-50%] translate-y-[-50%] !text-[8px]">
+                  Loading...
+                </span>
               </div>
-            </>
-          ) : (
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      return (
-                        <TableHead key={header.id} className="text-center">
-                          {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                            <button
-                              className="inline-flex items-center gap-1 hover:underline"
-                              onClick={header.column.getToggleSortingHandler()}
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                              {header.column.getIsSorted() === "asc" ? (
-                                <ArrowUp className="size-4" />
-                              ) : header.column.getIsSorted() === "desc" ? (
-                                <ArrowDown className="size-4" />
-                              ) : (
-                                <ArrowUpDown className="size-4 text-muted-foreground" />
-                              )}
-                            </button>
-                          ) : (
-                            flexRender(
+            </div>
+          </>
+        ) : (
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead key={header.id} className="text-center">
+                        {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                          <button
+                            className="inline-flex items-center gap-1 hover:underline"
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(
                               header.column.columnDef.header,
                               header.getContext()
-                            )
-                          )}
-                        </TableHead>
-                      );
-                    })}
+                            )}
+                            {header.column.getIsSorted() === "asc" ? (
+                              <ArrowUp className="size-4" />
+                            ) : header.column.getIsSorted() === "desc" ? (
+                              <ArrowDown className="size-4" />
+                            ) : (
+                              <ArrowUpDown className="size-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        ) : (
+                          flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )
+                        )}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id} className="text-center">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
                   </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows?.length ? (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && "selected"}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className="text-center">
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={columns.length}
-                      className="h-24 text-center"
-                    >
-                      No results.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No results.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
         {/* Pagination */}
         {!loading ? (
           <div className="flex flex-col gap-2 border-t p-2 sm:flex-row sm:items-center sm:justify-between">

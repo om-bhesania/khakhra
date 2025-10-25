@@ -4,6 +4,7 @@ import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { toast } from "sonner";
 import { inventoryColumns } from "../Columns";
 import { getAuth } from "firebase/auth";
+import { formatTimestampString, genCsvFileName } from "@/lib/utils";
 
 const InventoryTable = () => {
   const [data, setData] = useState<any[]>([]);
@@ -40,11 +41,28 @@ const InventoryTable = () => {
     }
   }, [error]);
 
+  const csvData = data.map(
+    ({ price, costPrice, quantity, sellingPrice, createdAt, updatedAt }) => ({
+      Category: price,
+      Quantity: quantity,
+      CostPrice: costPrice,
+      SellingPrice: sellingPrice,
+      createdAt: formatTimestampString(createdAt),
+      updatedAt: formatTimestampString(updatedAt),
+    })
+  );
+const csvHeader = ['Category', 'Quantity', 'CostPrice', 'SellingPrice', 'createdAt', 'updatedAt'];
+
+ 
+
   return (
     <DataTable
-      columns={inventoryColumns(fetchData, setData)} // pass setData here
+      columns={inventoryColumns( setData)} // pass setData here
       data={data}
       loading={isLoading}
+      csvData={csvData}
+      csvHeader={csvHeader}
+      csvFileName={genCsvFileName("Inventory_Data")}
     />
   );
 };

@@ -2,12 +2,28 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@/config/firebase.config";
 import { appRoutes, sidebarTitle } from "@/constants/appRoutes";
 import { useAuth } from "@/hooks/use-auth";
-import { ChevronDown, ChevronUp, Circle, LogOut, Minus } from "lucide-react";
-import React, { useEffect, useLayoutEffect, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@radix-ui/react-dropdown-menu";
+import {
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  LogOut,
+  Minus,
+  Settings
+} from "lucide-react";
+import React, { useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import CustomBreadCrumbs from "./BreadCrumbsCustomUi";
 import { ModeToggle } from "./themeToggle";
-import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -25,7 +41,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "./ui/sidebar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 type MenuIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 export type MenuItem = {
@@ -75,7 +90,7 @@ function Navigator() {
   const isActive = (url?: string) => !!url && location.pathname === url;
   const isGroupActive = (item: MenuItem) =>
     !!item.submenu?.some((s) => isActive(s.url));
-  const userData = auth.currentUser;
+  const userData: any = auth.currentUser;
 
   const handleResize = () => {
     const sidebarLeft =
@@ -83,7 +98,7 @@ function Navigator() {
 
     return sidebarLeft;
   };
- 
+  const nav = useNavigate();
 
   return (
     <>
@@ -104,7 +119,7 @@ function Navigator() {
           }}
         >
           <SidebarHeader className="min-h-[45px] p-0 !border-b dark:border-gray-700">
-            <span className="inline-flex items-center justify-center  h-full px-2 text-sm font-bold border-b">
+            <span className="inline-flex items-center justify-center  h-full px-2 py-4 text-sm font-bold border-b">
               {state === "collapsed" ? appInitials : appTitle}
             </span>
           </SidebarHeader>
@@ -175,16 +190,42 @@ function Navigator() {
             </SidebarGroup>
           </SidebarContent>
           <SidebarFooter>
-            <ModeToggle variant="button" />
-            {/* <InitButton /> */}
-            <Button
-              variant="outline"
-              onClick={useAuth().logout}
-              className="w-full flex items-center justify-start gap-4"
-            >
-              <LogOut className="size-4" />
-              <div className="font-medium">Logout</div>
-            </Button>
+            {state === "collapsed" ? (
+              <Button
+                variant="outline"
+                onClick={() => nav("/settings")}
+                className="w-full flex items-center justify-start gap-4 !p-2"
+              >
+                <Settings className="size-4" />
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => nav("/settings")}
+                className="w-full flex items-center justify-start gap-4"
+              >
+                <Settings className="size-4" />
+                <div className="font-medium">Settings</div>
+              </Button>
+            )}
+            {state === "collapsed" ? (
+              <Button
+                variant="destructive"
+                onClick={useAuth().logout}
+                className="w-full flex items-center justify-start gap-4 !p-2"
+              >
+                <LogOut className="size-4" />
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                onClick={useAuth().logout}
+                className="w-full flex items-center justify-start gap-4"
+              >
+                <LogOut className="size-4" />
+                <div className="font-medium">Logout</div>
+              </Button>
+            )}
           </SidebarFooter>
           <SidebarRail />
         </Sidebar>
@@ -199,22 +240,80 @@ function Navigator() {
               <CustomBreadCrumbs />
             </div>
           </div>
-          <div className="self-end">
-            <Tooltip delayDuration={500}>
-              <TooltipTrigger>
-                <Avatar slot="button" className="h-6 w-6">
-                  <AvatarFallback>
-                    <span className="text-xs font-medium">
-                      {userData?.email
-                        ?.split("@")[0]
-                        ?.slice(0, 2)
-                        .toUpperCase()}
-                    </span>
-                  </AvatarFallback>
-                </Avatar>
-              </TooltipTrigger>
-              <TooltipContent>{userData?.email}</TooltipContent>
-            </Tooltip>
+          <div className="flex gap-2 self-end">
+            <ModeToggle variant="switch" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="relative h-9 w-9 rounded-full hover:bg-muted transition-colors"
+                >
+                  <Avatar className="h-9 w-9 border border-muted">
+                    <AvatarImage
+                      src={userData?.avatar || undefined}
+                      alt={
+                        userData?.displayName
+                          ? userData.displayName.slice(0, 2).toUpperCase()
+                          : userData?.email
+                              ?.split("@")[0]
+                              ?.slice(0, 2)
+                              .toUpperCase()
+                      }
+                    />
+                    <AvatarFallback className="bg-muted text-xs font-semibold text-foreground">
+                      {userData?.displayName
+                        ? userData.displayName.slice(0, 2).toUpperCase()
+                        : userData?.email
+                            ?.split("@")[0]
+                            ?.slice(0, 2)
+                            .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent
+                className="w-60 rounded-xl shadow-lg border border-border bg-background p-1"
+                align="end"
+                sideOffset={6}
+              >
+                <DropdownMenuLabel className="font-normal px-3 py-2 border-b border-muted/40">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-semibold leading-none text-foreground">
+                      {userData?.displayName || "User"}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {userData?.email}
+                    </p>
+                    {userData?.phone && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {userData?.phone}
+                      </p>
+                    )}
+                  </div>
+                </DropdownMenuLabel>
+
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    onClick={() => nav("/settings")}
+                    className="flex items-center px-3 py-2 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <Settings className="mr-2 h-4 w-4 text-muted-foreground" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+
+                <DropdownMenuSeparator className="my-1" />
+
+                <DropdownMenuItem
+                  onClick={useAuth().logout}
+                  className="flex items-center px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         <div className="container mt-[50px]">

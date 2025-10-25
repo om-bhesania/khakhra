@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 import { useFirestoreCRUD } from "./use-firebaseCRUD";
 
 export function useRealtimeCollection<T>(moduleName: string) {
-  const { subscribeToCollection, unsubscribeAll, loading:moduleLoading, error } =
-    useFirestoreCRUD();
+  const {
+    subscribeToCollection,
+    loading: moduleLoading,
+    error,
+  } = useFirestoreCRUD();
   const [data, setData] = useState<T[]>([]);
 
   useEffect(() => {

@@ -4,10 +4,11 @@ import { getAuth } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { billingColumns } from "../Columns";
+import { genCsvFileName } from "@/lib/utils";
 
 const BillingTable = () => {
   const [data, setData] = useState<any>([]);
-  const { readDocuments, error } = useFirestoreCRUD();
+  const { readDocuments } = useFirestoreCRUD();
   const [isLoading, setIsLoading] = useState(false);
   const auth = getAuth();
 
@@ -29,8 +30,49 @@ const BillingTable = () => {
     };
     fetchData();
   }, []);
+  const csvData = data.map((item: any) => ({ 
+    invoiceId: item.invoiceId,  
+    name: item.name,
+    number: item.number,
+    dateKey: item.dateKey,
+    gstEnabled: item.gstEnabled ? "true" : "false",
+    gstPercent: item.gstPercent,
+    cgst: item.cgst,
+    sgst: item.sgst,
+    subtotal: item.subtotal,
+    total: item.total,
+    paymentMode: item.paymentMode, 
+    note: item.note,
+    createdAt: item.createdAt.toDate().toLocaleString(),
+    updatedAt: item.updatedAt.toDate().toLocaleString(),
+  }));
+  const csvHeader = [ 
+    "invoiceId", 
+    "name",
+    "number",
+    "dateKey",
+    "gstEnabled",
+    "gstPercent",
+    "cgst",
+    "sgst",
+    "subtotal",
+    "total",
+    "paymentMode", 
+    "note",
+    "createdAt",
+    "updatedAt", 
+  ];
 
-  return <DataTable columns={billingColumns} data={data} loading={isLoading} />;
+  return (
+    <DataTable
+      columns={billingColumns}
+      data={data}
+      loading={isLoading}
+      csvData={csvData}
+      csvHeader={csvHeader}
+      csvFileName={genCsvFileName("bills_data")}
+    />
+  );
 };
 
 export default BillingTable;

@@ -1,9 +1,10 @@
 import { DataTable } from "@/components/CustomTable";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
-import { useEffect, useState, useCallback } from "react";
+import { formatTimestampString, genCsvFileName } from "@/lib/utils";
+import { getAuth } from "firebase/auth";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { customerColumns } from "../Columns";
-import { getAuth } from "firebase/auth";
 
 function CustomerTable() {
   const [data, setData] = useState<any[]>([]);
@@ -38,6 +39,26 @@ function CustomerTable() {
   useEffect(() => {
     if (error) toast.error(error);
   }, [error]);
+console.log("data", data);
+  const csvData = data.map((item) => ({
+    id: item.id,
+    Name: item.name,
+    Phone: item.number,
+    "Payment Amount": item.paymentAmount,
+    "Payment Mode": item.paymentMode, 
+    createdAt: formatTimestampString(item.createdAt),
+    updatedAt: formatTimestampString(item.updatedAt),
+  }));
+
+  const csvHeader = [
+    "Name", 
+    "Phone",
+    "Address",
+    "Payment Amount",
+    "Payment Mode", 
+    "createdAt",
+    "updatedAt",
+  ];
 
   return (
     <div>
@@ -45,6 +66,9 @@ function CustomerTable() {
         columns={customerColumns(setData)} // pass setData here
         data={data}
         loading={isLoading}
+        csvData={csvData}
+        csvHeader={csvHeader}
+        csvFileName={genCsvFileName("Customer_Data")}
       />
     </div>
   );

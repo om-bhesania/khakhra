@@ -1,26 +1,25 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { getAuth } from "firebase/auth";
+import type { DocumentData, Unsubscribe } from "firebase/firestore";
 import {
-  collection,
-  doc,
   addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  FirestoreError,
   getDoc,
   getDocs,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
   limit,
   onSnapshot,
+  orderBy,
+  query,
   QueryConstraint,
   Timestamp,
-  FirestoreError,
-  setDoc,
-  writeBatch,
+  updateDoc,
+  where,
+  writeBatch
 } from "firebase/firestore";
-import type { DocumentData, Unsubscribe } from "firebase/firestore";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { db } from "../config/firebase.config";
-import { getAuth } from "firebase/auth";
 
 // Base document type with Firebase metadata
 export interface FirestoreDocument {

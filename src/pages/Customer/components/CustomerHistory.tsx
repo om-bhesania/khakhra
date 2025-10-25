@@ -1,14 +1,13 @@
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import {
   Calendar,
-  DollarSign,
   FileText,
   Filter,
   IndianRupee,
-  Receipt,
+  Receipt
 } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 
 interface HistoryProps {
   id: string;

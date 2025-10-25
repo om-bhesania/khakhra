@@ -1,8 +1,7 @@
 import { GenericActions } from "@/components/CRUD/GenericEditDelete";
-import { Button } from "@/components/ui/button";
 import { formatTimestampString } from "@/lib/utils";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, EyeIcon } from "lucide-react";
+import { EyeIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export const customerColumns = (
@@ -21,25 +20,36 @@ export const customerColumns = (
   {
     id: "actions",
     header: "Actions",
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2">
-        <GenericActions
-          collection="customers"
-          record={row.original}
-          editableFields={["name", "number"]}
-          labelMap={{ name: "Name", number: "Number" }}
-          onAfterDelete={() =>
-            setData((prev) => prev.filter((i) => i.id !== row.original.id))
-          }
-          onAfterUpdate={(updated) =>
-            setData((prev) =>
-              prev.map((i) =>
-                i.id === row.original.id ? { ...i, ...updated } : i
+    cell: ({ row }) => {
+      const nav = useNavigate();
+      const handleRedirectToHistory = () => {
+        nav(`/customer/view/${row.original.id}`);
+      };
+
+      return (
+        <div className="flex items-center justify-center gap-2">
+          <GenericActions
+            collection="customers"
+            record={row.original}
+            editableFields={["name", "number"]}
+            labelMap={{ name: "Name", number: "Number" }}
+            onAfterDelete={() =>
+              setData((prev) => prev.filter((i) => i.id !== row.original.id))
+            }
+            onAfterUpdate={(updated) =>
+              setData((prev) =>
+                prev.map((i) =>
+                  i.id === row.original.id ? { ...i, ...updated } : i
+                )
               )
-            )
-          }
-        />
-      </div>
-    ),
+            }
+          />
+          <EyeIcon
+            onClick={handleRedirectToHistory}
+            className="cursor-pointer hover:text-primary h-4 w-4"
+          />
+        </div>
+      );
+    },
   },
 ];

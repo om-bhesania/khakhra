@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,9 +7,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Pencil, Trash2 } from "lucide-react";
-import Swal from "sweetalert2";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
+import { Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
+import Swal from "sweetalert2";
 
 type GenericActionsProps = {
   collection: string; // Firestore collection name
@@ -29,7 +29,7 @@ export const GenericActions = ({
   onAfterUpdate,
   onAfterDelete,
 }: GenericActionsProps) => {
-  const { deleteDocument, updateDocument, refreshData } = useFirestoreCRUD();
+  const { deleteDocument, updateDocument } = useFirestoreCRUD();
   const [open, setOpen] = useState(false);
   const [edited, setEdited] = useState<any>(() =>
     editableFields.reduce(
@@ -83,10 +83,9 @@ export const GenericActions = ({
       setLoading(false);
     }
   };
-  
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center justify-center gap-2">
       {/* ✏️ Edit */}
       {editableFields.length > 0 && (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -110,7 +109,7 @@ export const GenericActions = ({
                   <Input
                     value={edited[field]}
                     onChange={(e) =>
-                      setEdited((prev:any) => ({
+                      setEdited((prev: any) => ({
                         ...prev,
                         [field]: e.target.value,
                       }))

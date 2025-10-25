@@ -1,11 +1,9 @@
 // Columns.ts
 import { GenericActions } from "@/components/CRUD/GenericEditDelete";
-import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 
 // Columns.ts
 export const inventoryColumns = (
-  fetchData: () => Promise<void>,
   setData: React.Dispatch<React.SetStateAction<any[]>>
 ): ColumnDef<any>[] => [
   { accessorKey: "price", header: "Category (₹)" },

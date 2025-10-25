@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,10 +7,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import Swal from "sweetalert2";
-import { Pencil, Trash2 } from "lucide-react";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
-import { useRealtimeCollection } from "@/hooks/use-realtimeCollection";
+import { Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
+import Swal from "sweetalert2";
 
 export const BillActions = ({ bill }: { bill: any }) => {
   const { deleteDocument, updateDocument, refreshData } = useFirestoreCRUD();
@@ -62,7 +61,7 @@ export const BillActions = ({ bill }: { bill: any }) => {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center justify-center gap-2">
       {/* ✏️ Edit */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>

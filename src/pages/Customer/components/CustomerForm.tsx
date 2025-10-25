@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { useForm } from "@tanstack/react-form";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -11,10 +11,7 @@ function CustomerForm() {
   const { addDocument, readDocuments, subscribeToCollection } =
     useFirestoreCRUD();
   const [modes, setModes] = useState<string[]>([]);
-  const [isLoadingModes, setIsLoadingModes] = useState(false);
-  const [showNewModeInput, setShowNewModeInput] = useState(false);
-  const [newModeName, setNewModeName] = useState("");
-  const [isAddingMode, setIsAddingMode] = useState(false);
+
   const [nameFromUrl, setNameFromUrl] = useState<string>("");
   const location = useLocation();
   // Get name from URL
@@ -28,10 +25,8 @@ function CustomerForm() {
   useEffect(() => {
     let unsub: (() => void) | undefined;
     (async () => {
-      setIsLoadingModes(true);
       const initial = await readDocuments<{ name: string }>("paymentModes");
       setModes(initial.map((m) => String((m as any).name)).filter(Boolean));
-      setIsLoadingModes(false);
 
       unsub = subscribeToCollection("paymentModes", {
         onUpdate: (data: Array<{ name: string }>) => {
@@ -77,11 +72,7 @@ function CustomerForm() {
     },
   });
 
-  const modeItems = useMemo(
-    () => modes.sort((a, b) => a.localeCompare(b)),
-    [modes]
-  );
-
+  
   return (
     <div className="w-full space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
