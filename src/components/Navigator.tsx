@@ -17,9 +17,9 @@ import {
   Circle,
   LogOut,
   Minus,
-  Settings
+  Settings,
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import CustomBreadCrumbs from "./BreadCrumbsCustomUi";
 import { ModeToggle } from "./themeToggle";
@@ -41,6 +41,8 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "./ui/sidebar";
+import { useRBAC } from "@/wrappers/RBACProvider";
+import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 
 type MenuIcon = React.ComponentType<React.SVGProps<SVGSVGElement>>;
 export type MenuItem = {
@@ -50,21 +52,6 @@ export type MenuItem = {
   submenu?: Array<{ name: string; url: string; icon?: MenuIcon }>;
 };
 
-const routes: MenuItem[] = appRoutes
-  .filter((r) => r.type === "private" && !r.hideSidebar)
-  .map((r) => ({
-    name: r.name,
-    url: r.path !== "#" ? r.path : undefined,
-    icon: (r.icon as MenuIcon) || undefined,
-    submenu: r.submenu
-      ?.filter((s) => !s.hideSidebar)
-      .map((s) => ({
-        name: s.name,
-        url: s.path,
-        icon: (s.icon as MenuIcon) || undefined,
-      })),
-  }));
-
 function Navigator() {
   const location = useLocation();
   const { state, setOpen, isMobile } = useSidebar();
@@ -73,6 +60,7 @@ function Navigator() {
     {}
   );
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const [userProfile, setUserProfile] = useState<any>();
   const appTitle = sidebarTitle;
   const getInitials = (value: string) =>
     value
@@ -91,14 +79,101 @@ function Navigator() {
   const isGroupActive = (item: MenuItem) =>
     !!item.submenu?.some((s) => isActive(s.url));
   const userData: any = auth.currentUser;
-
+  console.log("userData", userData);
   const handleResize = () => {
     const sidebarLeft =
-      state === "collapsed" && !isMobile ? "left-[48px]" : "left-[257px]";
+      state === "collapsed" && isMobile
+        ? "md:left-[48px] !left-0"
+        : "left-[257px] max-md:left-0";
 
     return sidebarLeft;
   };
   const nav = useNavigate();
+  const { isAdminEmail, can } = useRBAC();
+
+  const adminItems: { name: string; url: string; icon?: MenuIcon }[] =
+    isAdminEmail
+      ? [
+          { name: "Admin Roles", url: "/admin/roles" },
+          { name: "RBAC Sync", url: "/admin/rbac-sync" },
+          {
+            name: "Organizations",
+            url: "/admin/orgs",
+          },
+          {
+            name: "Org Members",
+            url: "/admin/orgs/:id/members",
+          },
+        ]
+      : [];
+
+  const baseRoutes: MenuItem[] = useMemo(() => {
+    return appRoutes
+      .filter((r) => r.type === "private" && !r.hideSidebar)
+      .map((r) => {
+        const icon = (r.icon as MenuIcon) || undefined;
+        // Filter submenu by RBAC if present
+        const rawSubs = (r.submenu || []).filter((s) => !s.hideSidebar);
+        const filteredSubs = rawSubs
+          .filter((s) => {
+            const meta = (s as any).rbac as
+              | { module?: string; action?: any }
+              | undefined;
+            if (!meta) return true;
+            return can(meta.module!, meta.action);
+          })
+          .map((s) => ({
+            name: s.name,
+            url: s.path,
+            icon: (s.icon as MenuIcon) || undefined,
+          }));
+
+        if (filteredSubs.length > 0) {
+          return { name: r.name, icon, submenu: filteredSubs } as MenuItem;
+        }
+
+        // If route originally had submenu but none are allowed now, hide the parent entirely
+        if ((r.submenu || []).length > 0) {
+          return null;
+        }
+
+        // No submenu originally: gate top-level by RBAC if metadata exists
+        const meta = (r as any).rbac as
+          | { module?: string; action?: any }
+          | undefined;
+        const allowed = !meta || can(meta.module!, meta.action);
+        return allowed
+          ? ({
+              name: r.name,
+              url: r.path !== "#" ? r.path : undefined,
+              icon,
+            } as MenuItem)
+          : null;
+      })
+      .filter(Boolean) as MenuItem[];
+  }, [can]);
+
+  const displayRoutes = React.useMemo(() => {
+    // Merge RBAC-filtered routes and admin-only items
+    const base = [...baseRoutes];
+    if (adminItems.length) {
+      base.push({ name: "Admin", submenu: adminItems });
+    }
+    return base;
+  }, [isAdminEmail, baseRoutes]);
+  // Usage example
+  const { getCurrentUserProfile } = useFirestoreCRUD();
+
+  async function test() {
+    const userProfileData = await getCurrentUserProfile();
+    console.log("userProfile", userProfileData); // "admin", "user", etc.
+    console.log("=====>", userProfileData?.role); // "admin", "user", etc.
+    console.log("=====>", userProfileData?.displayName); // Custom fields
+    setUserProfile(userProfileData);
+  }
+  useEffect(() => {
+    test();
+  }, []);
 
   return (
     <>
@@ -127,7 +202,7 @@ function Navigator() {
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {routes.map((item) => {
+                  {displayRoutes.map((item) => {
                     const active = isActive(item.url) || isGroupActive(item);
                     const Icon = item.icon || Circle;
                     return (
@@ -246,19 +321,12 @@ function Navigator() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="relative h-9 w-9 rounded-full hover:bg-muted transition-colors"
+                  className="relative h-9 w-9 p-0 rounded-full hover:bg-muted transition-colors"
                 >
                   <Avatar className="h-9 w-9 border border-muted">
                     <AvatarImage
-                      src={userData?.avatar || undefined}
-                      alt={
-                        userData?.displayName
-                          ? userData.displayName.slice(0, 2).toUpperCase()
-                          : userData?.email
-                              ?.split("@")[0]
-                              ?.slice(0, 2)
-                              .toUpperCase()
-                      }
+                      src={userProfile?.photoURL || userData?.photoURL}
+                      alt={userData?.displayName}
                     />
                     <AvatarFallback className="bg-muted text-xs font-semibold text-foreground">
                       {userData?.displayName
@@ -280,37 +348,40 @@ function Navigator() {
                 <DropdownMenuLabel className="font-normal px-3 py-2 border-b border-muted/40">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-semibold leading-none text-foreground">
-                      {userData?.displayName || "User"}
+                      {userProfile?.displayName ||
+                        userData?.displayName ||
+                        "User"}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {userData?.email}
+                      {userProfile?.email || userData?.email}
                     </p>
-                    {userData?.phone && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {userData?.phone}
-                      </p>
-                    )}
+
+                    <p className="text-xs  text-muted-foreground truncate">
+                      {userProfile?.phoneNumber || userData?.phoneNumber}
+                    </p>
+
+                    <p className="text-xs text-muted-foreground truncate">
+                      {userProfile?.role || userData?.role}
+                    </p>
                   </div>
                 </DropdownMenuLabel>
 
+                <DropdownMenuSeparator className="my-1 border-t" />
                 <DropdownMenuGroup>
                   <DropdownMenuItem
                     onClick={() => nav("/settings")}
-                    className="flex items-center px-3 py-2 rounded-md hover:bg-muted transition-colors"
+                    className="flex items-center px-3 py-1.5 rounded-md hover:bg-muted transition-colors cursor-pointer"
                   >
-                    <Settings className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <span>Settings</span>
+                    <Settings className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm">Settings</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
-
-                <DropdownMenuSeparator className="my-1" />
-
                 <DropdownMenuItem
                   onClick={useAuth().logout}
-                  className="flex items-center px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors"
+                  className="flex items-center px-3 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors cursor-pointer mb-2"
                 >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
+                  <LogOut className="mr-2 h-3.5 w-3.5" />
+                  <span className="text-sm">Log out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -1,26 +1,63 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow initial setup for roles and permissions
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == "bhesaniaom@gmail.com";
+    }
+
+    // RBAC configuration collections
     match /roles/{roleId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
     match /permissions/{permissionId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
-    match /masterUserData/{userId} {
+    match /RolesAndPermssions/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
-    // Default rule
+    // Users collection: everyone can read; only admin can write other users
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+    }
+
+    // Organizations
+    match /organizations/{orgId} {
+      allow read: if request.auth != null;
+      // Only admin can create/update/delete organizations and manage membership
+      allow write: if isAdmin();
+
+      // Members subcollection: admin writes; reads open to authenticated
+      match /members/{memberUid} {
+        allow read: if request.auth != null;
+        allow write: if isAdmin();
+      }
+
+      // Org-scoped user data: organizations/{orgId}/users/{uid}/{coll}/{doc}
+      match /users/{uid}/{coll}/{docId} {
+        // Read: Only members of this org can read
+        allow read: if request.auth != null && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+        // Write: Any org member can write their org data
+        allow write: if request.auth != null && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+      }
+    }
+
+    // Employees collection: readable by authenticated users; writable by admin only
+    match /employees/{empId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Other application collections - default: authenticated read/write
     match /{document=**} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
     }
   }
 }

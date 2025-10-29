@@ -1,9 +1,18 @@
 import NotFound from "@/layout/NotFound";
 import { BillingAdd, BillingView } from "@/pages/Billing/Billing";
-import { CustomerAdd, CustomerHistory, CustomerView } from "@/pages/Customer/Customer";
+import {
+  CustomerAdd,
+  CustomerHistory,
+  CustomerView,
+} from "@/pages/Customer/Customer";
 import { InventoryAdd, InventoryView } from "@/pages/Inventory/Inventory";
+import { EmployeesAdd, EmployeesView } from "@/pages/Employees/Employees";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import { AdminRolesView } from "@/pages/AdminRoles/AdminRoles";
+import RBACSync from "@/pages/AdminRoles/RBACSync";
+import AdminOrgs from "@/pages/AdminOrgs/AdminOrgs";
+import AdminOrgMembers from "@/pages/AdminOrgs/AdminOrgMembers";
 import AuditLogs from "@/pages/Roles/AuditLogs";
 import RoleManagement from "@/pages/Roles/RoleManagement";
 import {
@@ -32,25 +41,41 @@ export type AppRoute = {
   icon?: IconType;
   element?: any;
   hideSidebar?: boolean;
+  rbac?: {
+    module: "dashboard" | "billing" | "inventory" | "customers" | "employees";
+    action: "read" | "write" | "update" | "delete";
+  };
   submenu?: Array<{
     name: string;
     path: string;
     icon?: IconType;
     hideSidebar?: boolean;
     element?: any;
+    rbac?: {
+      module: "dashboard" | "billing" | "inventory" | "customers" | "employees";
+      action: "read" | "write" | "update" | "delete";
+    };
   }>;
 };
 
 export const sidebarTitle = "Inventory Management System";
 
 export const appRoutes: AppRoute[] = [
-  { name: "Home", path: "/", type: "private", icon: HomeIcon, element: Home },
+  {
+    name: "Home",
+    path: "/",
+    type: "private",
+    icon: HomeIcon,
+    element: Home,
+    rbac: { module: "dashboard", action: "read" },
+  },
   {
     name: "Home",
     path: "/home",
     type: "private",
     icon: HomeIcon,
     element: Home,
+    rbac: { module: "dashboard", action: "read" },
     hideSidebar: true,
   },
   {
@@ -104,11 +129,13 @@ export const appRoutes: AppRoute[] = [
         name: "View Inventory",
         path: "/inventory/view",
         element: InventoryView,
+        rbac: { module: "inventory", action: "read" },
       },
       {
         name: "Add Inventory",
-        path: "/inventoory/add",
+        path: "/inventory/add",
         element: InventoryAdd,
+        rbac: { module: "inventory", action: "write" },
       },
     ],
   },
@@ -123,12 +150,14 @@ export const appRoutes: AppRoute[] = [
         path: "/billing/view",
         icon: FileSpreadsheet,
         element: BillingView,
+        rbac: { module: "billing", action: "read" },
       },
       {
         name: "Add Bill",
         path: "/billing/add",
         icon: ReceiptIndianRupee,
         element: BillingAdd,
+        rbac: { module: "billing", action: "write" },
       },
     ],
   },
@@ -143,12 +172,34 @@ export const appRoutes: AppRoute[] = [
         path: "/customer/view",
         icon: UserRoundSearch,
         element: CustomerView,
+        rbac: { module: "customers", action: "read" },
       },
       {
         name: "Add Customer",
         path: "/customer/add",
         icon: UserPlus,
         element: CustomerAdd,
+        rbac: { module: "customers", action: "write" },
+      },
+    ],
+  },
+  {
+    name: "Employees",
+    path: "/employees",
+    type: "private",
+    icon: Users,
+    submenu: [
+      {
+        name: "View Employees",
+        path: "/employees/view",
+        element: EmployeesView,
+        rbac: { module: "employees", action: "read" },
+      },
+      {
+        name: "Add Employee",
+        path: "/employees/add",
+        element: EmployeesAdd,
+        rbac: { module: "employees", action: "write" },
       },
     ],
   },
@@ -159,6 +210,7 @@ export const appRoutes: AppRoute[] = [
     icon: User,
     hideSidebar: true,
     element: CustomerHistory,
+    rbac: { module: "customers", action: "read" },
   },
   {
     name: "Settings",
@@ -167,6 +219,38 @@ export const appRoutes: AppRoute[] = [
     icon: SettingIcon,
     hideSidebar: true,
     element: Settings,
+  },
+  {
+    name: "Admin Roles",
+    path: "/admin/roles",
+    type: "private",
+    icon: Shield,
+    element: AdminRolesView,
+    hideSidebar: true,
+  },
+  {
+    name: "RBAC Sync",
+    path: "/admin/rbac-sync",
+    type: "private",
+    icon: Shield,
+    element: RBACSync,
+    hideSidebar: true,
+  },
+  {
+    name: "Organizations",
+    path: "/admin/orgs",
+    type: "private",
+    icon: Shield,
+    element: AdminOrgs,
+    hideSidebar: true,
+  },
+  {
+    name: "Org Members",
+    path: "/admin/orgs/:id/members",
+    type: "private",
+    icon: Shield,
+    element: AdminOrgMembers,
+    hideSidebar: true,
   },
   {
     name: "Role Management",
