@@ -16,7 +16,8 @@ import {
   Timestamp,
   updateDoc,
   where,
-  writeBatch
+  writeBatch,
+  setDoc,
 } from "firebase/firestore";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { db } from "../config/firebase.config";
@@ -118,7 +119,7 @@ export function useFirestoreCRUD() {
   const throttleTimers = useRef<Map<string, number>>(new Map());
 
   // System-wide collections (not user-specific)
-  const SYSTEM_COLLECTIONS = ["users", "roles", "permissions", "settings"];
+  const SYSTEM_COLLECTIONS = ["users", "roles", "permissions", "settings", "organizations"];
 
   // Helper to get user-specific collection path
   const getUserCollectionPath = useCallback(
@@ -140,7 +141,15 @@ export function useFirestoreCRUD() {
         return collectionName;
       }
 
-      // User-specific collections
+      // Check if user belongs to an organization for org-scoped path
+      const cachedProfile = cache.current.get(`users_${currentUser.uid}`);
+      const organizationId = cachedProfile?.organizationId as string | undefined;
+
+      if (organizationId) {
+        return `organizations/${organizationId}/users/${currentUser.uid}/${collectionName}`;
+      }
+
+      // User-specific collections (legacy per-user scope)
       return `users/${currentUser.uid}/${collectionName}`;
     },
     [auth.currentUser]
@@ -194,6 +203,12 @@ export function useFirestoreCRUD() {
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         };
+
+        // Attach organizationId if writing under org path
+        if (collPath.startsWith("organizations/")) {
+          const orgId = collPath.split("/")[1];
+          (documentData as any).organizationId = orgId;
+        }
 
         const docRef = await addDoc(collectionRef, documentData);
         console.log(`Document added successfully with ID: ${docRef.id}`);
@@ -348,6 +363,62 @@ export function useFirestoreCRUD() {
       }
     },
     [auth.currentUser, getUserCollectionPath]
+  );
+
+  /**
+   * Read documents from a ROOT collection (not scoped under users/{uid})
+   */
+  const readRootDocuments = useCallback(
+    async <T extends DocumentData>(
+      collectionName: string,
+      options?: QueryOptions
+    ): Promise<Array<DocumentWithId<T>>> => {
+      if (!auth.currentUser) {
+        const errorMsg = "No authenticated user. Please sign in first.";
+        setError(errorMsg);
+        return [];
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const collectionRef = collection(db, collectionName);
+        const constraints: QueryConstraint[] = [];
+
+        if (options?.where) {
+          options.where.forEach((w) => {
+            constraints.push(where(w.field, w.operator as any, w.value));
+          });
+        }
+        if (options?.orderBy) {
+          constraints.push(
+            orderBy(options.orderBy, options.orderDirection || "asc")
+          );
+        }
+        const limitCount = options?.limit ? Math.min(options.limit, 1000) : 100;
+        constraints.push(limit(limitCount));
+
+        const q =
+          constraints.length > 0
+            ? query(collectionRef, ...constraints)
+            : query(collectionRef, limit(100));
+
+        const snapshot = await getDocs(q);
+        const documents = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as unknown as Array<DocumentWithId<T>>;
+
+        setLoading(false);
+        return documents;
+      } catch (err) {
+        handleError(err, "Read Root Documents");
+        setLoading(false);
+        return [];
+      }
+    },
+    [auth.currentUser]
   );
 
   /**
@@ -732,6 +803,184 @@ export function useFirestoreCRUD() {
     [getUserCollectionPath, readDocuments]
   );
 
+  /**
+   * Read all documents for the current organization across all users using collection group
+   */
+  const readOrgDocuments = useCallback(
+    async <T extends DocumentData>(
+      collectionName: string,
+      options?: QueryOptions
+    ): Promise<Array<DocumentWithId<T>>> => {
+      if (!auth.currentUser) {
+        const errorMsg = "No authenticated user. Please sign in first.";
+        setError(errorMsg);
+        return [];
+      }
+
+      const cachedProfile = cache.current.get(`users_${auth.currentUser.uid}`);
+      const organizationId = cachedProfile?.organizationId as string | undefined;
+      if (!organizationId) {
+        return readDocuments<T>(collectionName, options);
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Use dynamic import to access collectionGroup
+        const { collectionGroup } = await import("firebase/firestore");
+        const groupRef = collectionGroup(db as any, collectionName as any) as any;
+        const constraints: QueryConstraint[] = [where("organizationId", "==", organizationId)];
+        if (options?.where) {
+          options.where.forEach((w) => {
+            constraints.push(where(w.field, w.operator as any, w.value));
+          });
+        }
+        if (options?.orderBy) {
+          constraints.push(
+            orderBy(options.orderBy, options.orderDirection || "asc")
+          );
+        }
+        const limitCount = options?.limit ? Math.min(options.limit, 1000) : 100;
+        constraints.push(limit(limitCount));
+
+        const q = query(groupRef, ...(constraints as any));
+        const snapshot = await getDocs(q as any);
+        const documents = snapshot.docs.map((doc) => {
+          const data = doc.data() as Record<string, any>;
+          return { id: doc.id, ...data };
+        }) as any;
+        setLoading(false);
+        return documents as Array<DocumentWithId<T>>;
+      } catch (err) {
+        handleError(err, "Read Org Documents");
+        setLoading(false);
+        return [];
+      }
+    },
+    [auth.currentUser, readDocuments]
+  );
+  /**
+   * Get the current logged-in user's document from the root 'users' collection
+   * This fetches the full user profile with roles, permissions, etc.
+   */
+  const getCurrentUserProfile = useCallback(async <
+    T extends DocumentData
+  >(): Promise<DocumentWithId<T> | null> => {
+    if (!auth.currentUser) {
+      const errorMsg = "No authenticated user. Please sign in first.";
+      setError(errorMsg);
+      return null;
+    }
+
+    const userId = auth.currentUser.uid;
+    const cacheKey = `users_${userId}`;
+
+    // Check cache
+    const cached = cache.current.get(cacheKey);
+    if (cached) {
+      console.log(`Cache hit for current user profile: ${userId}`);
+      return cached as DocumentWithId<T>;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const userDocRef = doc(db, "users", userId);
+      const userSnap = await getDoc(userDocRef);
+
+      if (userSnap.exists()) {
+        const userProfile = {
+          id: userSnap.id,
+          ...userSnap.data(),
+        } as unknown as DocumentWithId<T>;
+
+        cache.current.set(cacheKey, userProfile);
+        setLoading(false);
+        console.log(`Current user profile fetched:`, userProfile);
+        return userProfile;
+      } else {
+        // Auto-create minimal user profile if missing (e.g., email/password users)
+        const authUser = auth.currentUser!;
+        const providerId = authUser.providerData?.[0]?.providerId || "email";
+        const newProfile: any = {
+          uid: authUser.uid,
+          email: authUser.email,
+          displayName: authUser.displayName || null,
+          photoURL: authUser.photoURL || null,
+          phoneNumber: (authUser as any).phoneNumber || null,
+          role: "user",
+          provider: providerId,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        };
+
+        await setDoc(userDocRef, newProfile, { merge: true });
+
+        const createdProfile = {
+          id: userId,
+          ...newProfile,
+        } as unknown as DocumentWithId<T>;
+
+        cache.current.set(cacheKey, createdProfile);
+        setLoading(false);
+        return createdProfile;
+      }
+    } catch (err) {
+      handleError(err, "Get Current User Profile");
+      setLoading(false);
+      return null;
+    }
+  }, [auth.currentUser]);
+
+  /**
+   * Search and get any user by their userId from the root 'users' collection
+   * Useful for admin features, user lookup, etc.
+   */
+  const getUserById = useCallback(
+    async <T extends DocumentData>(
+      userId: string
+    ): Promise<DocumentWithId<T> | null> => {
+      const cacheKey = `users_${userId}`;
+
+      // Check cache
+      const cached = cache.current.get(cacheKey);
+      if (cached) {
+        console.log(`Cache hit for user: ${userId}`);
+        return cached as DocumentWithId<T>;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const userDocRef = doc(db, "users", userId);
+        const userSnap = await getDoc(userDocRef);
+
+        if (userSnap.exists()) {
+          const userProfile = {
+            id: userSnap.id,
+            ...userSnap.data(),
+          } as unknown as DocumentWithId<T>;
+
+          cache.current.set(cacheKey, userProfile);
+          setLoading(false);
+          console.log(`User profile fetched for ${userId}:`, userProfile);
+          return userProfile;
+        } else {
+          setError(`User with ID ${userId} not found`);
+          setLoading(false);
+          return null;
+        }
+      } catch (err) {
+        handleError(err, "Get User By ID");
+        setLoading(false);
+        return null;
+      }
+    },
+    []
+  );
   return {
     loading,
     error,
@@ -749,5 +998,9 @@ export function useFirestoreCRUD() {
     getCollections,
     clearError: () => setError(null),
     refreshData,
+    getCurrentUserProfile,
+    getUserById,
+    readRootDocuments,
+    readOrgDocuments,
   };
 }
