@@ -3,29 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { useForm } from "@tanstack/react-form";
-import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 function EmployeesForm() {
-  const { addDocument, subscribeToCollection, readDocuments } = useFirestoreCRUD();
-  const [employees, setEmployees] = useState<string[]>([]);
-
-  useEffect(() => {
-    let unsub: (() => void) | undefined;
-    (async () => {
-      const initial = await readDocuments<{ name: string }>("employees");
-      setEmployees(initial.map((m) => String((m as any).name)).filter(Boolean));
-
-      unsub = subscribeToCollection("employees", {
-        onUpdate: (data: Array<{ name: string }>) => {
-          setEmployees(data.map((d) => String(d.name)).filter(Boolean));
-        },
-      } as any);
-    })();
-    return () => {
-      if (typeof unsub === "function") unsub();
-    };
-  }, [readDocuments, subscribeToCollection]);
+  const { addDocument } = useFirestoreCRUD();
 
   const form = useForm({
     defaultValues: {
@@ -73,12 +54,15 @@ function EmployeesForm() {
           <form.Field
             name="name"
             validators={{
-              onChange: ({ value }) => (value?.trim() ? undefined : "Enter a name"),
+              onChange: ({ value }) =>
+                value?.trim() ? undefined : "Enter a name",
             }}
           >
             {(field) => (
               <div className="space-y-1">
-                <label className="text-sm text-zinc-600 dark:text-zinc-300">Name</label>
+                <label className="text-sm text-zinc-600 dark:text-zinc-300">
+                  Name
+                </label>
                 <Input
                   value={String(field.state.value ?? "")}
                   onChange={(e) => field.handleChange(e.target.value)}
@@ -86,7 +70,9 @@ function EmployeesForm() {
                   placeholder="Employee name"
                 />
                 {field.state.meta.errors[0] && (
-                  <p className="text-xs text-rose-600">{field.state.meta.errors[0]}</p>
+                  <p className="text-xs text-rose-600">
+                    {field.state.meta.errors[0]}
+                  </p>
                 )}
               </div>
             )}
@@ -95,12 +81,15 @@ function EmployeesForm() {
           <form.Field
             name="phoneNumber"
             validators={{
-              onChange: ({ value }) => (String(value).trim() ? undefined : "Enter phone number"),
+              onChange: ({ value }) =>
+                String(value).trim() ? undefined : "Enter phone number",
             }}
           >
             {(field) => (
               <div className="space-y-1">
-                <label className="text-sm text-zinc-600 dark:text-zinc-300">Phone Number</label>
+                <label className="text-sm text-zinc-600 dark:text-zinc-300">
+                  Phone Number
+                </label>
                 <Input
                   value={String(field.state.value ?? "")}
                   onChange={(e) => field.handleChange(e.target.value)}
@@ -109,7 +98,9 @@ function EmployeesForm() {
                   placeholder="98765 43210"
                 />
                 {field.state.meta.errors[0] && (
-                  <p className="text-xs text-rose-600">{field.state.meta.errors[0]}</p>
+                  <p className="text-xs text-rose-600">
+                    {field.state.meta.errors[0]}
+                  </p>
                 )}
               </div>
             )}
@@ -118,7 +109,9 @@ function EmployeesForm() {
           <form.Field name="address">
             {(field) => (
               <div className="space-y-1">
-                <label className="text-sm text-zinc-600 dark:text-zinc-300">Address (optional)</label>
+                <label className="text-sm text-zinc-600 dark:text-zinc-300">
+                  Address (optional)
+                </label>
                 <Input
                   value={String(field.state.value ?? "")}
                   onChange={(e) => field.handleChange(e.target.value)}
@@ -133,7 +126,9 @@ function EmployeesForm() {
             <form.Field name="timingsStart">
               {(field) => (
                 <div className="space-y-1">
-                  <label className="text-sm text-zinc-600 dark:text-zinc-300">Shift Start (IST)</label>
+                  <label className="text-sm text-zinc-600 dark:text-zinc-300">
+                    Shift Start (IST)
+                  </label>
                   <Input
                     type="time"
                     value={String(field.state.value ?? "")}
@@ -146,7 +141,9 @@ function EmployeesForm() {
             <form.Field name="timingsEnd">
               {(field) => (
                 <div className="space-y-1">
-                  <label className="text-sm text-zinc-600 dark:text-zinc-300">Shift End (IST)</label>
+                  <label className="text-sm text-zinc-600 dark:text-zinc-300">
+                    Shift End (IST)
+                  </label>
                   <Input
                     type="time"
                     value={String(field.state.value ?? "")}
@@ -161,7 +158,9 @@ function EmployeesForm() {
           <form.Field name="dateOfJoining">
             {(field) => (
               <div className="space-y-1">
-                <label className="text-sm text-zinc-600 dark:text-zinc-300">Date of Joining</label>
+                <label className="text-sm text-zinc-600 dark:text-zinc-300">
+                  Date of Joining
+                </label>
                 <Input
                   type="date"
                   value={String(field.state.value ?? "")}
@@ -172,9 +171,15 @@ function EmployeesForm() {
             )}
           </form.Field>
 
-          <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+          <form.Subscribe
+            selector={(state) => [state.canSubmit, state.isSubmitting]}
+          >
             {([canSubmit, isSubmitting]) => (
-              <Button type="submit" disabled={!canSubmit} className="bg-rose-600 text-white hover:bg-rose-700">
+              <Button
+                type="submit"
+                disabled={!canSubmit}
+                className="bg-rose-600 text-white hover:bg-rose-700"
+              >
                 {isSubmitting ? "Saving..." : "Save Employee"}
               </Button>
             )}
@@ -205,7 +210,9 @@ function EmployeesForm() {
                     <div>
                       <div className="text-zinc-500">Timings (IST)</div>
                       <div className="font-medium text-zinc-900 dark:text-zinc-100 min-h-5">
-                        {values.timingsStart && values.timingsEnd ? `${values.timingsStart} - ${values.timingsEnd}` : "—"}
+                        {values.timingsStart && values.timingsEnd
+                          ? `${values.timingsStart} - ${values.timingsEnd}`
+                          : "—"}
                       </div>
                     </div>
                     <div>
@@ -226,5 +233,3 @@ function EmployeesForm() {
 }
 
 export default EmployeesForm;
-
-
