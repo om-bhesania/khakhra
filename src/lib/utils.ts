@@ -65,3 +65,10 @@ export const genCsvFileName = (baseName: string) => {
   const csvFileName = `${baseName}_${currentTime}.csv`;
   return csvFileName;
 };
+
+export const COMPANY_CONFIG = {
+  name: "Prinima Ben Na Khakhra",
+  address: "Karelibaug besies bansal mall, upon atul bakery",
+  city: "Vadodara, Gujarat",
+  phone: "+9374933534",
+};

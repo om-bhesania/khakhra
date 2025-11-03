@@ -28,13 +28,19 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { invoiceTemplate } from "./printInvoiceTemplate";
+import {
+  generateBillHTML,
+  printBill,
+  type BillData,
+} from "../../../lib/billGenerator";
+import { COMPANY_CONFIG } from "@/lib/utils";
+
 type LineItem = {
   itemId: string;
   itemName: string;
   quantity: number;
   rate: number;
-  fullItem?: any; // ✅ optional, full product data
+  fullItem?: any;
 };
 
 type BillingFormValues = {
@@ -89,7 +95,8 @@ const BillingForm = () => {
   const [idLocked, setIdLocked] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
-  const [custData, setCustData] = useState<any>([]); 
+  const [custData, setCustData] = useState<any>([]);
+
   const todayKey = useMemo(() => {
     const d = new Date();
     const yy = String(d.getFullYear()).slice(-2);
@@ -98,25 +105,24 @@ const BillingForm = () => {
     return `${yy}${mm}${dd}`;
   }, []);
 
-  // get customer data
-
   const fetchCustomreData = async () => {
     const custData = await readDocuments("customers");
     setCustData(custData);
   };
+
   useEffect(() => {
     fetchCustomreData();
   }, []);
+
   const modeItems = useMemo(
     () => modes.sort((a, b) => a.localeCompare(b)),
     [modes]
   );
+
   const getMostRecentBill = useCallback(async () => {
     const bills = await readDocuments("bills");
-
     if (!bills || bills.length === 0) return null;
 
-    // Find most recent by createdAt
     const mostRecent = bills.reduce((prev, curr) => {
       const prevTime = prev?.createdAt?.seconds || 0;
       const currTime = curr?.createdAt?.seconds || 0;
@@ -139,32 +145,29 @@ const BillingForm = () => {
           console.error("Failed to parse last invoice ID:", err);
         }
       }
-console.log("newSequence", newSequence);
+
       return `INV/${todayKey}/${newSequence}`;
     },
     [todayKey]
   );
 
   useEffect(() => {
-    (async () => { 
-
+    (async () => {
       const mostRecentBill = await getMostRecentBill();
       const recentInvoiceId = mostRecentBill?.invoiceId;
-
       const newInvoiceId = await generateInvoiceId(recentInvoiceId);
 
-      // Set invoice id into form values
       setValues((v) => ({ ...v, id: newInvoiceId }));
 
-      // Fetch inventory (optional)
       const inv = await readDocuments("inventory", { limit: 100 });
       const updatedInventory = inv.map((item: any) =>
         item.quantity === 0 ? { ...item, name: "No Items Left" } : item
       );
 
-      setInventory(updatedInventory); 
+      setInventory(updatedInventory);
     })();
   }, [getMostRecentBill, generateInvoiceId]);
+
   useEffect(() => {
     let unsub: (() => void) | undefined;
     (async () => {
@@ -184,7 +187,6 @@ console.log("newSequence", newSequence);
     };
   }, [readDocuments, subscribeToCollection]);
 
-  // Add items in invoice
   const addLineItem = () => {
     setValues((v) => ({
       ...v,
@@ -219,6 +221,7 @@ console.log("newSequence", newSequence);
       ),
     [values.lineItems]
   );
+
   const gstAmount = useMemo(
     () =>
       values.gstEnabled
@@ -226,6 +229,7 @@ console.log("newSequence", newSequence);
         : 0,
     [subtotal, values.gstEnabled, values.gstPercent]
   );
+
   const cgst = gstAmount / 2;
   const sgst = gstAmount / 2;
   const total = subtotal + gstAmount;
@@ -235,10 +239,7 @@ console.log("newSequence", newSequence);
     setValues((v) => ({ ...v, [name]: type === "checkbox" ? checked : value }));
   };
 
-  // handdle submit
-  const test = generateInvoiceId();
-console.log("====>0",test)
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: FormEvent, shouldPrint = false) => {
     e.preventDefault();
     setSubmitting(true);
     try {
@@ -246,8 +247,8 @@ console.log("====>0",test)
       let finalId: string = values.id;
 
       if (idLocked || !finalId) {
-        finalId = await generateInvoiceId(); // await here
-        const parts = finalId.split("/"); // ["INV", "yyMMdd", "0001"]
+        finalId = await generateInvoiceId();
+        const parts = finalId.split("/");
         seq = parseInt(parts[2], 10) || 0;
       }
 
@@ -261,13 +262,13 @@ console.log("====>0",test)
         }
       }
 
-      const res = await addDocument("bills", {
-        invoiceId: values.id ||finalId,
+      const billData = {
+        invoiceId: finalId,
         sequence: seq,
         dateKey: todayKey,
         customerId: selectedCustomerId,
-        name: values.name || customerName,
-        number: values.number || customerPhone,
+        name: customerName || values.name,
+        number: customerPhone || values.number,
         note: values.note,
         gstEnabled: values.gstEnabled,
         gstPercent: Number(values.gstPercent) || 0,
@@ -275,28 +276,62 @@ console.log("====>0",test)
         sgst,
         subtotal,
         total,
-        paymentMode: values.paymentMode, // ✅ ADD THIS LINE
+        paymentMode: values.paymentMode,
         lineItems: values.lineItems,
         exisitingCustomerData: {
           id: selectedCustomerId,
           name: customerName,
           phone: customerPhone,
         },
-      });
+      };
 
-      console.log("res =====>", res);
-      // ONLY update localStorage AFTER successful bill creation
+      await addDocument("bills", billData);
+
+      // Print after saving if requested
+      if (shouldPrint) {
+        const printData: BillData = {
+          companyName: COMPANY_CONFIG.name,
+          companyAddress: COMPANY_CONFIG.address,
+          companyCity: COMPANY_CONFIG.city,
+          companyPhone: COMPANY_CONFIG.phone,
+          receiptNumber: finalId,
+          date: new Date().toLocaleString("en-IN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+          userName: customerName || values.name || "Guest",
+          items: values.lineItems.map((item) => ({
+            itemName: item.itemName,
+            quantity: item.quantity,
+            rate: item.rate,
+            discount: 0,
+          })),
+          cartDiscount: 0,
+          cgst: values.gstEnabled ? cgst : 0,
+          sgst: values.gstEnabled ? sgst : 0,
+          subtotal,
+          total,
+          paymentMode: values.paymentMode || "Cash",
+        };
+
+        const htmlContent = generateBillHTML(printData);
+        printBill(htmlContent);
+      }
+
       const storageKey = `invoice_sequence_${todayKey}`;
       localStorage.setItem(storageKey, seq.toString());
 
       setSubmitting(false);
       setIdLocked(false);
 
-      // Generate new invoice ID for the next bill
-      const nextInvoice: any = generateInvoiceId();
-console.log("nextInvoice", nextInvoice);
+      const nextInvoice = await generateInvoiceId(finalId);
+
       setValues({
-        id: nextInvoice.id,
+        id: nextInvoice,
         name: "",
         number: "",
         note: "",
@@ -310,6 +345,11 @@ console.log("nextInvoice", nextInvoice);
           phone: "",
         },
       });
+
+      setSelectedCustomerId("");
+      setCustomerName("");
+      setCustomerPhone("");
+
       nav("/billing/view");
       toast.success("Bill saved successfully");
     } catch (err: any) {
@@ -318,29 +358,10 @@ console.log("nextInvoice", nextInvoice);
     }
   };
 
-  const printInvoice = (values: any) => {
-    console.log("values", values);
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
-    const htmlContent = invoiceTemplate(values);
-
-    printWindow.document.write(`
-      <!doctype html>
-      <html>
-        <head>
-          <title>Invoice - ${values.invoiceId}</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1"/>
-        </head>
-        <body>${htmlContent}</body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
+  const saveAndPrintInvoice = (e: FormEvent) => {
+    submit(e, true);
   };
+
   const nav = useNavigate();
 
   return (
@@ -369,12 +390,6 @@ console.log("nextInvoice", nextInvoice);
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Name</label>
-            {/* <Input
-              name="name"
-              value={values.name}
-              onChange={onChange}
-              required
-            /> */}
             <CustomerCombobox
               customers={custData}
               value={selectedCustomerId}
@@ -436,7 +451,7 @@ console.log("nextInvoice", nextInvoice);
                         itemId: val,
                         itemName: it.name ?? it.category ?? it.id,
                         rate: Number(it.sellingPrice) || 0,
-                        fullItem: it, // ✅ store full item data here
+                        fullItem: it,
                       });
                     }
                   }}
@@ -475,7 +490,7 @@ console.log("nextInvoice", nextInvoice);
                     className="text-right"
                     type="number"
                     min={0}
-                    disabled={true} // Disable manual rate editing
+                    disabled={true}
                     value={String(li.rate)}
                     onChange={(e) =>
                       setLineItem(idx, { rate: Number(e.target.value) })
@@ -664,10 +679,15 @@ console.log("nextInvoice", nextInvoice);
           <Button
             type="button"
             variant="outline"
-            onClick={() => printInvoice(values)}
+            onClick={saveAndPrintInvoice}
+            disabled={
+              submitting ||
+              values.lineItems.length === 0 ||
+              values.lineItems.some((li) => !li.itemId || li.quantity <= 0)
+            }
           >
             <FileDown className="size-4" />
-            Print Invoice
+            Save & Print
           </Button>
           <Button
             type="submit"
@@ -681,56 +701,6 @@ console.log("nextInvoice", nextInvoice);
           </Button>
         </div>
       </form>
-
-      {/* Printable area */}
-      <div id="printable-invoice" className="hidden print:block">
-        <div className="p-6">
-          <div className="mb-4 text-xl font-semibold">Invoice</div>
-          <div className="mb-2 text-sm">Invoice ID: {values.id}</div>
-          <div className="mb-2 text-sm">Name: {values.name}</div>
-          <div className="mb-4 text-sm">Number: {values.number}</div>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr>
-                <th className="border px-2 py-1 text-left">Item</th>
-                <th className="border px-2 py-1 text-right">Qty</th>
-                <th className="border px-2 py-1 text-right">Rate</th>
-                <th className="border px-2 py-1 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {values.lineItems.map((li, idx) => {
-                const amount =
-                  (Number(li.quantity) || 0) * (Number(li.rate) || 0);
-                return (
-                  <tr key={idx}>
-                    <td className="border px-2 py-1">{li.itemName}</td>
-                    <td className="border px-2 py-1 text-right">
-                      {li.quantity}
-                    </td>
-                    <td className="border px-2 py-1 text-right">
-                      ₹ {Number(li.rate).toFixed(2)}
-                    </td>
-                    <td className="border px-2 py-1 text-right">
-                      ₹ {amount.toFixed(2)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div className="mt-4 text-right">
-            <div>Subtotal: ₹ {subtotal.toFixed(2)}</div>
-            {values.gstEnabled ? (
-              <>
-                <div>CGST: ₹ {cgst.toFixed(2)}</div>
-                <div>SGST: ₹ {sgst.toFixed(2)}</div>
-              </>
-            ) : null}
-            <div className="font-semibold">Total: ₹ {total.toFixed(2)}</div>
-          </div>
-        </div>
-      </div>
     </Card>
   );
 };
