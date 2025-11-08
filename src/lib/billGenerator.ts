@@ -11,7 +11,7 @@ export interface BillData {
   companyName: string;
   companyAddress: string;
   companyCity: string;
-  companyPhone: string; 
+  companyPhone: string;
   receiptNumber: string;
   date: string;
   userName: string;
@@ -298,7 +298,7 @@ export const generateBillHTML = (data: BillData): string => {
         </div>
 
         <div class="footer">
-span style="font-weight: 600;">
+<span style="font-weight: 600;">
           THANK YOU FOR YOUR BUSINESS<br>
           PLEASE VISIT AGAIN
           </span><br><br>
