@@ -92,8 +92,9 @@ export const generateBillHTML = (data: BillData): string => {
           }
           .receipt { 
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 4mm 5mm !important;
             width: 76mm !important;
+            page-break-after: always;
           }
         }
         * {
@@ -114,7 +115,7 @@ export const generateBillHTML = (data: BillData): string => {
         .receipt {
           width: 76mm;
           margin: 0;
-          padding: 0;
+          padding: 4mm 5mm;
           background: white;
         }
         .header {
