@@ -30,201 +30,285 @@ export type BillData = {
  * - paperWidth: "80mm" | "72mm" (default: "80mm")
  * - fontScale: multiplier for font sizes (default: 1.12)
  */
-export function generateBillHTML(
-  printData: BillData,
-  opts?: { paperWidth?: string; fontScale?: number }
-) {
-  const paperWidth = opts?.paperWidth ?? "80mm";
-  const fontScale = opts?.fontScale ?? 1.12;
-  const edgePadding = "6px"; // set to "0" for absolute edge-to-edge (may clip on some printers)
+export const generateBillHTML = (data: BillData): string => {
+  const {
+    companyName,
+    companyAddress,
+    companyCity,
+    companyPhone,
+    receiptNumber,
+    date,
+    userName,
+    items,
+    cartDiscount = 0,
+    cgst = 0,
+    sgst = 0,
+    subtotal,
+    total,
+    paymentMode = "Cash",
+  } = data;
 
-  function escapeHtml(s: any) {
-    if (s === null || s === undefined) return "";
-    return String(s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
+  // Calculate items display
+  const itemsHTML = items
+    .map((item) => {
+      const itemTotal = item.quantity * item.rate;
+      const itemDiscount = item.discount || 0;
+      const itemFinalPrice = itemTotal - itemDiscount;
 
-  const itemsRows = printData.items
-    .map((it) => {
-      const qty = Number(it.quantity) || 0;
-      const rate = Number(it.rate) || 0;
-      const amount = qty * rate - (Number(it.discount) || 0);
-      return `<tr>
-        <td style="padding:4px 0; font-size:${Math.round(
-          13 * fontScale
-        )}px">${escapeHtml(it.itemName)}</td>
-        <td style="padding:4px 4px; text-align:right; font-size:${Math.round(
-          13 * fontScale
-        )}px; width:10%">${qty}</td>
-        <td style="padding:4px 4px; text-align:right; font-size:${Math.round(
-          13 * fontScale
-        )}px; width:18%">₹${rate.toFixed(2)}</td>
-        <td style="padding:4px 0; text-align:right; font-size:${Math.round(
-          13 * fontScale
-        )}px; width:22%">₹${amount.toFixed(2)}</td>
-      </tr>`;
+      return `
+        <tr>
+          <td colspan="2" style="padding: 3px 0 1px 0; font-size: 12px; font-weight: 600;">${
+            item.itemName
+          }</td>
+        </tr>
+        <tr style="border-bottom: 1px dashed #999;">
+          <td style="padding: 0 0 4px 0; font-size: 11px;">
+            ${item.quantity} x ₹${item.rate.toFixed(2)}${
+        itemDiscount > 0 ? ` (-₹${itemDiscount.toFixed(2)})` : ""
+      }
+          </td>
+          <td style="padding: 0 0 4px 0; text-align: right; font-size: 12px; font-weight: 600;">
+            ₹${itemFinalPrice.toFixed(2)}
+          </td>
+        </tr>
+      `;
     })
     .join("");
 
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Receipt ${escapeHtml(printData.receiptNumber)}</title>
-  <style>
-    :root{
-      --receipt-width: ${paperWidth};
-      --font-base: ${Math.round(13 * fontScale)}px;
-      --font-small: ${Math.round(11 * fontScale)}px;
-      --edge-padding: ${edgePadding};
-    }
-    html,body{margin:0;padding:0;background:#fff;color:#000;-webkit-print-color-adjust:exact}
-    /* Page size: width fixed, height auto so printer can cut after content */
-    @page{ size: var(--receipt-width) auto; margin: 0; }
-    @media print{
-      html,body{background:#fff}
-      .receipt { box-shadow:none !important; border:none !important; margin:0 !important; }
-    }
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
-    /* Receipt container sized to paper width */
-    .receipt{
-      width:var(--receipt-width);
-      box-sizing:border-box;
-      padding: var(--edge-padding);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Courier New", monospace;
-      font-size: var(--font-base);
-      color:#000;
-      line-height:1.2;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-
-    .center { text-align: center; }
-    .company-name { font-size: calc(var(--font-base) * 1.35); font-weight:700; margin-bottom:4px; }
-    .company-info { font-size: var(--font-small); margin-bottom:6px; }
-    .meta { font-size: var(--font-small); margin:6px 0; }
-    table { width:100%; border-collapse:collapse; margin-top:6px; font-size:var(--font-base); }
-    td, th { padding: 2px 0; vertical-align: top; }
-    .right { text-align:right; }
-    hr { border:none; border-top:1px dashed #000; margin:6px 0; }
-
-    /* totals area */
-    .totals { margin-top:6px; font-size: var(--font-base); }
-    .totals .row { display:flex; justify-content:space-between; padding:3px 0; }
-    .totals .row.total { font-size: calc(var(--font-base) * 1.15); font-weight:700; border-top:1px solid #000; padding-top:6px; margin-top:6px; }
-
-    /* avoid splitting receipt across printed pages */
-    .receipt, .receipt * { page-break-inside: avoid; break-inside: avoid; -webkit-column-break-inside: avoid; -moz-column-break-inside: avoid; }
-
-    /* accessibility: reduce motion */
-    @media (prefers-reduced-motion: reduce) {
-      * { transition:none !important; animation:none !important; }
-    }
-  </style>
-</head>
-<body>
-  <div class="receipt" id="receipt-root" role="document" aria-label="Receipt">
-    <div class="center">
-      <div class="company-name">${escapeHtml(printData.companyName || "")}</div>
-      <div class="company-info">${escapeHtml(printData.companyAddress || "")}${
-    printData.companyCity ? "<br/>" + escapeHtml(printData.companyCity) : ""
-  }${
-    printData.companyPhone
-      ? "<br/>Ph: " + escapeHtml(printData.companyPhone)
-      : ""
-  }</div>
-    </div>
-
-    <hr/>
-
-    <div class="meta"><strong>Receipt#:</strong> ${escapeHtml(
-      printData.receiptNumber
-    )} &nbsp; <strong>Date:</strong> ${escapeHtml(printData.date)}</div>
-    <div class="meta"><strong>Customer:</strong> ${escapeHtml(
-      printData.userName || "Guest"
-    )}</div>
-
-    <table aria-hidden="false">
-      <thead>
-        <tr>
-          <th style="width:50%; text-align:left; font-size:var(--font-small)">Item</th>
-          <th style="width:10%; text-align:right; font-size:var(--font-small)">Qty</th>
-          <th style="width:18%; text-align:right; font-size:var(--font-small)">Rate</th>
-          <th style="width:22%; text-align:right; font-size:var(--font-small)">Amt</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${itemsRows}
-      </tbody>
-    </table>
-
-    <hr/>
-
-    <div class="totals" role="contentinfo">
-      ${
-        printData.cartDiscount
-          ? `<div class="row"><div>Cart discount</div><div> - ₹${Number(
-              printData.cartDiscount
-            ).toFixed(2)}</div></div>`
-          : ""
-      }
-      <div class="row"><div>Subtotal</div><div>₹${Number(
-        printData.subtotal
-      ).toFixed(2)}</div></div>
-      ${
-        printData.cgst
-          ? `<div class="row"><div>CGST</div><div>₹${Number(
-              printData.cgst
-            ).toFixed(2)}</div></div>`
-          : ""
-      }
-      ${
-        printData.sgst
-          ? `<div class="row"><div>SGST</div><div>₹${Number(
-              printData.sgst
-            ).toFixed(2)}</div></div>`
-          : ""
-      }
-      <div class="row total"><div>Total</div><div>₹${Number(
-        printData.total
-      ).toFixed(2)}</div></div>
-    </div>
-
-    <div class="center" style="margin-top:8px; font-size:var(--font-small)">Payment: ${escapeHtml(
-      printData.paymentMode || "Cash"
-    )}</div>
-    <div class="center" style="margin-top:6px; font-size:var(--font-small)">Thank you for your business!</div>
-  </div>
-
-  <script>
-    // Auto-print helper. When opened in a new window by your app, this will trigger print and try to close the window.
-    (function(){
-      function doPrintAndClose(){
-        try {
-          // small timeout so CSS @page has time to apply in some browsers
-          setTimeout(() => {
-            window.print();
-            // Closing the window is optional; some browsers restrict closing windows not opened by script.
-            try { window.close(); } catch(e) { /*ignore*/ }
-          }, 250);
-        } catch(e) {
-          console.error("Auto-print failed", e);
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Receipt ${receiptNumber}</title>
+      <style>
+        @page {
+          size: 76mm auto;
+          margin: 0;
         }
-      }
-      // Only auto run if this page was likely opened as a print window (opener exists)
-      if (window.opener) {
-        window.addEventListener('load', doPrintAndClose);
-      }
-    })();
-  </script>
-</body>
-</html>`;
-}
+        @media print {
+          body { 
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 76mm !important;
+          }
+          .receipt { 
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 3mm 4mm !important;
+            page-break-after: auto;
+          }
+        }
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        body {
+          font-family: 'Courier New', Courier, monospace;
+          margin: 0;
+          padding: 0;
+          background: white;
+          width: 76mm;
+          line-height: 1.2;
+        }
+        .receipt {
+          width: 76mm;
+          margin: 0 auto;
+          background: white;
+          padding: 3mm 4mm;
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 6px;
+          padding-bottom: 6px;
+          border-bottom: 1px dashed #000;
+        }
+        .company-name {
+          font-size: 18px;
+          font-weight: bold;
+          margin-bottom: 3px;
+          letter-spacing: 0.5px;
+        }
+        .company-info {
+          font-size: 10px;
+          line-height: 1.3;
+          color: #000;
+        }
+        .receipt-info {
+          margin: 6px 0;
+          font-size: 11px;
+          border-bottom: 1px dashed #000;
+          padding-bottom: 6px;
+          line-height: 1.4;
+        }
+        .receipt-number {
+          font-weight: bold;
+          margin-bottom: 2px;
+          font-size: 11px;
+        }
+        .info-line {
+          margin: 1px 0;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 6px 0 0 0;
+        }
+        .items-header {
+          padding: 4px 0;
+          font-size: 11px;
+          font-weight: bold;
+          text-transform: uppercase;
+          border-bottom: 1px solid #000;
+          border-top: 1px solid #000;
+          margin-bottom: 4px;
+        }
+        .summary {
+          padding-top: 6px;
+          margin-top: 4px;
+        }
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 2px 0;
+          font-size: 11px;
+        }
+        .discount-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 3px 0;
+          font-size: 11px;
+          border-top: 1px dashed #000;
+          margin-top: 4px;
+          padding-top: 6px;
+        }
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 8px 0;
+          font-size: 16px;
+          font-weight: bold;
+          border-top: 2px solid #000;
+          border-bottom: 2px solid #000;
+          margin: 6px 0;
+        }
+        .payment-info {
+          margin-top: 6px;
+          font-size: 11px;
+          padding-top: 6px;
+        }
+        .payment-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 2px 0;
+          line-height: 1.4;
+        }
+        .footer {
+          text-align: center;
+          margin-top: 8px;
+          padding-top: 6px;
+          border-top: 1px dashed #000;
+          font-size: 10px;
+          line-height: 1.4;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        <div class="header">
+          <div class="company-name">${companyName}</div>
+          <div class="company-info">
+            ${companyAddress}<br>
+            ${companyCity}<br>
+            Tel: ${companyPhone}
+          </div>
+        </div>
+
+        <div class="receipt-info">
+          <div class="receipt-number">Receipt #${receiptNumber}</div>
+          <div class="info-line">${date}</div>
+          <div class="info-line">Customer: ${userName}</div>
+        </div>
+
+        <div class="items-header">
+          Items (${itemCount})
+        </div>
+
+        <table>
+          ${itemsHTML}
+        </table>
+
+        ${
+          cartDiscount > 0
+            ? `
+          <div class="discount-row">
+            <span>Cart Discount:</span>
+            <span style="font-weight: 600;">-₹${cartDiscount.toFixed(2)}</span>
+          </div>
+        `
+            : ""
+        }
+
+        <div class="summary">
+          <div class="summary-row">
+            <span>Subtotal:</span>
+            <span>₹${subtotal.toFixed(2)}</span>
+          </div>
+          ${
+            cgst > 0
+              ? `
+            <div class="summary-row">
+              <span>CGST:</span>
+              <span>₹${cgst.toFixed(2)}</span>
+            </div>
+          `
+              : ""
+          }
+          ${
+            sgst > 0
+              ? `
+            <div class="summary-row">
+              <span>SGST:</span>
+              <span>₹${sgst.toFixed(2)}</span>
+            </div>
+          `
+              : ""
+          }
+        </div>
+
+        <div class="total-row">
+          <span>TOTAL:</span>
+          <span>₹${total.toFixed(2)}</span>
+        </div>
+
+        <div class="payment-info">
+          <div class="payment-row">
+            <span>Payment Mode:</span>
+            <span style="font-weight: 600;">${paymentMode}</span>
+          </div>
+          <div class="payment-row">
+            <span>Paid Amount:</span>
+            <span style="font-weight: 600;">₹${total.toFixed(2)}</span>
+          </div>
+          <div class="payment-row">
+            <span>Change:</span>
+            <span>₹0.00</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          THANK YOU FOR YOUR BUSINESS<br>
+          PLEASE VISIT AGAIN
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
 
 /**
  * printBill(htmlString)

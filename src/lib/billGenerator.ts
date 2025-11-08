@@ -30,7 +30,7 @@ export const generateBillHTML = (data: BillData): string => {
     companyName,
     companyAddress,
     companyCity,
-    companyPhone, 
+    companyPhone,
     receiptNumber,
     date,
     userName,
@@ -51,28 +51,27 @@ export const generateBillHTML = (data: BillData): string => {
       const itemFinalPrice = itemTotal - itemDiscount;
 
       return `
-        <tr style="border-bottom: 1px solid #e5e7eb;">
-          <td style="padding: 8px 0; font-size: 14px;">${
-            item.quantity
-          }x ₹${item.rate.toFixed(2)} ${
-        itemDiscount > 0 ? `(-₹${itemDiscount.toFixed(2)})` : ""
-      }</td>
-          <td style="padding: 8px 0; text-align: right; font-size: 14px;">₹${itemFinalPrice.toLocaleString(
-            "en-IN",
-            { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-          )}</td>
-        </tr>
         <tr>
-          <td colspan="2" style="padding: 4px 0 12px 0; font-size: 14px;">${
+          <td colspan="2" style="padding: 3px 0 1px 0; font-size: 12px; font-weight: 600;">${
             item.itemName
           }</td>
+        </tr>
+        <tr style="border-bottom: 1px dashed #999;">
+          <td style="padding: 0 0 4px 0; font-size: 11px;">
+            ${item.quantity} x ₹${item.rate.toFixed(2)}${
+        itemDiscount > 0 ? ` (-₹${itemDiscount.toFixed(2)})` : ""
+      }
+          </td>
+          <td style="padding: 0 0 4px 0; text-align: right; font-size: 12px; font-weight: 600;">
+            ₹${itemFinalPrice.toFixed(2)}
+          </td>
         </tr>
       `;
     })
     .join("");
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  
+
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -81,88 +80,136 @@ export const generateBillHTML = (data: BillData): string => {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Receipt ${receiptNumber}</title>
       <style>
+        @page {
+          size: 76mm auto;
+          margin: 0;
+        }
         @media print {
-          body { margin: 0; }
-          .receipt { box-shadow: none !important; }
+          html, body { 
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 76mm !important;
+          }
+          .receipt { 
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 76mm !important;
+          }
+        }
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        html, body {
+          margin: 0;
+          padding: 0;
+          width: 76mm;
+          background: white;
         }
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-          margin: 0;
-          padding: 20px;
-          background: #f3f4f6;
+          font-family: 'Courier New', Courier, monospace;
+          line-height: 1.2;
         }
         .receipt {
-          max-width: 400px;
-          margin: 0 auto;
+          width: 76mm;
+          margin: 0;
+          padding: 0;
           background: white;
-          padding: 30px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         .header {
           text-align: center;
-          margin-bottom: 20px;
-          border-bottom: 2px solid #000;
-          padding-bottom: 15px;
+          margin-bottom: 6px;
+          padding-bottom: 6px;
+          border-bottom: 1px dashed #000;
         }
         .company-name {
-          font-size: 24px;
+          font-size: 18px;
           font-weight: bold;
-          margin-bottom: 8px;
+          margin-bottom: 3px;
+          letter-spacing: 0.5px;
         }
         .company-info {
-          font-size: 12px;
-          line-height: 1.6;
-          color: #374151;
+          font-size: 10px;
+          line-height: 1.3;
+          color: #000;
         }
         .receipt-info {
-          margin: 20px 0;
-          font-size: 13px;
-          border-bottom: 1px dashed #9ca3af;
-          padding-bottom: 15px;
+          margin: 6px 0;
+          font-size: 11px;
+          border-bottom: 1px dashed #000;
+          padding-bottom: 6px;
+          line-height: 1.4;
         }
         .receipt-number {
           font-weight: bold;
-          margin-bottom: 5px;
+          margin-bottom: 2px;
+          font-size: 11px;
+        }
+        .info-line {
+          margin: 1px 0;
         }
         table {
           width: 100%;
           border-collapse: collapse;
-          margin: 15px 0;
+          margin: 6px 0 0 0;
         }
         .items-header {
-          border-bottom: 2px solid #000;
-          padding-bottom: 8px;
-          margin-bottom: 10px;
+          padding: 4px 0;
+          font-size: 11px;
+          font-weight: bold;
+          text-transform: uppercase;
+          border-bottom: 1px solid #000;
+          border-top: 1px solid #000;
+          margin-bottom: 4px;
         }
         .summary {
-          border-top: 1px solid #e5e7eb;
-          padding-top: 15px;
-          margin-top: 15px;
+          padding-top: 6px;
+          margin-top: 4px;
         }
         .summary-row {
           display: flex;
           justify-content: space-between;
-          padding: 5px 0;
-          font-size: 14px;
+          padding: 2px 0;
+          font-size: 11px;
+        }
+        .discount-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 3px 0;
+          font-size: 11px;
+          border-top: 1px dashed #000;
+          margin-top: 4px;
+          padding-top: 6px;
         }
         .total-row {
           display: flex;
           justify-content: space-between;
-          padding: 10px 0;
-          font-size: 18px;
+          padding: 8px 0;
+          font-size: 16px;
           font-weight: bold;
           border-top: 2px solid #000;
           border-bottom: 2px solid #000;
-          margin-top: 10px;
+          margin: 6px 0;
         }
         .payment-info {
-          margin-top: 15px;
-          font-size: 14px;
+          margin-top: 6px;
+          font-size: 11px;
+          padding-top: 6px;
         }
         .payment-row {
           display: flex;
           justify-content: space-between;
-          padding: 3px 0;
+          padding: 2px 0;
+          line-height: 1.4;
+        }
+        .footer {
+          text-align: center;
+          margin-top: 8px;
+          padding-top: 6px;
+          border-top: 1px dashed #000;
+          font-size: 10px;
+          line-height: 1.4;
         }
       </style>
     </head>
@@ -173,18 +220,18 @@ export const generateBillHTML = (data: BillData): string => {
           <div class="company-info">
             ${companyAddress}<br>
             ${companyCity}<br>
-            ${companyPhone}<br> 
+            Tel: ${companyPhone}
           </div>
         </div>
 
         <div class="receipt-info">
-          <div class="receipt-number">Receipt No.: ${receiptNumber}</div>
-          <div>${date}</div>
-          <div>Customer: ${userName}</div>
+          <div class="receipt-number">Receipt #${receiptNumber}</div>
+          <div class="info-line">${date}</div>
+          <div class="info-line">Customer: ${userName}</div>
         </div>
 
         <div class="items-header">
-          Items count: ${itemCount}
+          Items (${itemCount})
         </div>
 
         <table>
@@ -194,12 +241,9 @@ export const generateBillHTML = (data: BillData): string => {
         ${
           cartDiscount > 0
             ? `
-          <div class="summary-row" style="margin-bottom: 10px;">
-            <span>Cart discount:</span>
-            <span>-₹${cartDiscount.toLocaleString("en-IN", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}</span>
+          <div class="discount-row">
+            <span>Cart Discount:</span>
+            <span style="font-weight: 600;">-₹${cartDiscount.toFixed(2)}</span>
           </div>
         `
             : ""
@@ -208,20 +252,14 @@ export const generateBillHTML = (data: BillData): string => {
         <div class="summary">
           <div class="summary-row">
             <span>Subtotal:</span>
-            <span>₹${subtotal.toLocaleString("en-IN", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}</span>
+            <span>₹${subtotal.toFixed(2)}</span>
           </div>
           ${
             cgst > 0
               ? `
             <div class="summary-row">
               <span>CGST:</span>
-              <span>₹${cgst.toLocaleString("en-IN", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}</span>
+              <span>₹${cgst.toFixed(2)}</span>
             </div>
           `
               : ""
@@ -231,10 +269,7 @@ export const generateBillHTML = (data: BillData): string => {
               ? `
             <div class="summary-row">
               <span>SGST:</span>
-              <span>₹${sgst.toLocaleString("en-IN", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}</span>
+              <span>₹${sgst.toFixed(2)}</span>
             </div>
           `
               : ""
@@ -243,28 +278,27 @@ export const generateBillHTML = (data: BillData): string => {
 
         <div class="total-row">
           <span>TOTAL:</span>
-          <span>₹${total.toLocaleString("en-IN", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}</span>
+          <span>₹${total.toFixed(2)}</span>
         </div>
 
         <div class="payment-info">
           <div class="payment-row">
             <span>Payment Mode:</span>
-            <span>${paymentMode}</span>
+            <span style="font-weight: 600;">${paymentMode}</span>
           </div>
           <div class="payment-row">
-            <span>Paid amount:</span>
-            <span>₹${total.toLocaleString("en-IN", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}</span>
+            <span>Paid Amount:</span>
+            <span style="font-weight: 600;">₹${total.toFixed(2)}</span>
           </div>
           <div class="payment-row">
             <span>Change:</span>
             <span>₹0.00</span>
           </div>
+        </div>
+
+        <div class="footer">
+          THANK YOU FOR YOUR BUSINESS<br>
+          PLEASE VISIT AGAIN
         </div>
       </div>
     </body>
