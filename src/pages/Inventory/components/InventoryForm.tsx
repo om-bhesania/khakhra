@@ -31,9 +31,10 @@ function InventoryForm() {
       if (typeof unsub === "function") unsub();
     };
   }, [readDocuments, subscribeToCollection]);
-   console.log("inventory", inventory);
+  console.log("inventory", inventory);
   const form = useForm({
     defaultValues: {
+      name: "",
       price: 0,
       quantity: 0,
       costPrice: 0,
@@ -45,6 +46,7 @@ function InventoryForm() {
     onSubmit: async ({ value }) => {
       try {
         const payload: Record<string, any> = {
+          name: value.name.trim(),
           price: Number(value.price) || 0,
           quantity: Number(value.quantity) || 0,
           costPrice: Number(value.costPrice) || 0,
@@ -86,6 +88,35 @@ function InventoryForm() {
         >
           {/* Price */}
           <form.Field
+            name="name"
+            validators={{
+              onChange: ({ value }) =>
+                value.trim().length > 0 ? undefined : "Enter a valid name",
+            }}
+          >
+            {(field) => (
+              <div className="space-y-1">
+                <label className="text-sm text-zinc-600 dark:text-zinc-300">
+                  Name
+                </label>
+                <Input
+                  value={String(field.state.value ?? "")}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  inputMode="text"
+                  placeholder="name"
+                />
+                {field.state.meta.errors[0] && (
+                  <p className="text-xs text-rose-600">
+                    {field.state.meta.errors[0]}
+                  </p>
+                )}
+              </div>
+            )}
+          </form.Field>
+
+          {/* Price */}
+          <form.Field
             name="price"
             validators={{
               onChange: ({ value }) =>
@@ -95,7 +126,7 @@ function InventoryForm() {
             {(field) => (
               <div className="space-y-1">
                 <label className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Price
+                  Category
                 </label>
                 <Input
                   value={String(field.state.value ?? "")}
@@ -243,6 +274,14 @@ function InventoryForm() {
               <form.Subscribe selector={(state) => state.values}>
                 {(values) => (
                   <div className="space-y-3 text-sm">
+                    <div>
+                      <div className="text-zinc-500">Name</div>
+                      <div className="font-medium text-zinc-900 dark:text-zinc-100 min-h-5">
+                        {values.price
+                          ? values.name
+                          : "—"}
+                      </div>
+                    </div>
                     <div>
                       <div className="text-zinc-500">Price</div>
                       <div className="font-medium text-zinc-900 dark:text-zinc-100 min-h-5">

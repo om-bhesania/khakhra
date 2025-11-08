@@ -6,6 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 export const inventoryColumns = (
   setData: React.Dispatch<React.SetStateAction<any[]>>
 ): ColumnDef<any>[] => [
+  { accessorKey: "name", header: "Product Name" },
   { accessorKey: "price", header: "Category (₹)" },
   { accessorKey: "quantity", header: "Quantity" },
   { accessorKey: "costPrice", header: "Cost Price (₹)" },
@@ -17,8 +18,9 @@ export const inventoryColumns = (
       <GenericActions
         collection="inventory"
         record={row.original}
-        editableFields={["price", "quantity", "costPrice", "sellingPrice"]}
+        editableFields={["name","price", "quantity", "costPrice", "sellingPrice"]}
         labelMap={{
+          name:"Name",
           price: "Category",
           quantity: "Quantity",
           costPrice: "Cost Price",
