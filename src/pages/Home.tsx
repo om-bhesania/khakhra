@@ -95,7 +95,7 @@ const Home = () => {
       if (item.quantity < 10) {
         lowStockItems.push({
           id: item.id,
-          name: `₹${item.price || item.sellingPrice}`, // Using price as name
+          name: `${item.name ? item.name : `₹${item.price || item.sellingPrice}`}`, // Using price as name
           quantity: item.quantity,
           price: item.price || item.sellingPrice,
           status:
@@ -807,6 +807,126 @@ const Home = () => {
             </CardContent>
           </Card>
         )}
+        {/* Payment Modes Analysis */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment Mode Distribution</CardTitle>
+            <p className="text-sm text-gray-500">
+              Revenue breakdown by payment method
+            </p>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              // Calculate payment mode totals
+              const paymentModes: any = {};
+
+              filteredInvoices.forEach((invoice: any) => {
+                const mode = invoice.paymentMode || "Cash";
+                const total = invoice.total || 0;
+
+                if (!paymentModes[mode]) {
+                  paymentModes[mode] = {
+                    mode: mode,
+                    total: 0,
+                    count: 0,
+                  };
+                }
+
+                paymentModes[mode].total += total;
+                paymentModes[mode].count += 1;
+              });
+
+              const paymentData: any = Object.values(paymentModes).sort(
+                (a: any, b: any) => b.total - a.total
+              );
+
+              const totalPayments: any = paymentData.reduce(
+                (sum: any, item: any) => sum + item.total,
+                0
+              );
+
+              return paymentData.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Visual Bars */}
+                  <div className="space-y-3">
+                    {paymentData.map((payment: any, index: any) => {
+                      const percentage =
+                        totalPayments > 0
+                          ? (payment.total / totalPayments) * 100
+                          : 0;
+
+                      return (
+                        <div key={payment.mode} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{
+                                  backgroundColor:
+                                    COLORS[index % COLORS.length],
+                                }}
+                              />
+                              <span className="font-medium text-gray-900">
+                                {payment.mode}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                ({payment.count} transactions)
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-gray-900">
+                                ₹{payment.total.toFixed(2)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {percentage.toFixed(1)}%
+                              </p>
+                            </div>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div
+                              className="h-2.5 rounded-full transition-all duration-300"
+                              style={{
+                                width: `${percentage}%`,
+                                backgroundColor: COLORS[index % COLORS.length],
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6 pt-6 border-t border-gray-200">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
+                      <p className="text-sm text-blue-700 mb-1">
+                        Total Collected
+                      </p>
+                      <p className="text-2xl font-bold text-blue-900">
+                        ₹{totalPayments.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
+                      <p className="text-sm text-green-700 mb-1">
+                        Most Used Mode
+                      </p>
+                      <p className="text-2xl font-bold text-green-900">
+                        {paymentData[0]?.mode}
+                      </p>
+                      <p className="text-xs text-green-700 mt-1">
+                        {paymentData[0]?.count} transactions
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  No payment data available
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
