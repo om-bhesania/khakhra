@@ -43,25 +43,25 @@ function CustomerForm() {
     defaultValues: {
       name: "",
       number: "",
-      paymentMode: "",
-      paymentAmount: 0,
+      packets: "",
     },
     onSubmit: async ({ value }) => {
       try {
-        const trimmedMode = value.paymentMode.trim();
-
         // Add customer
-        await addDocument("customers", {
+        const customerData: any = {
           name: value.name.trim(),
           number: value.number.trim(),
-          paymentMode: trimmedMode,
-          paymentAmount: Number(value.paymentAmount) || 0,
-        });
+        };
 
-        // If new mode, add to paymentModes
-        if (trimmedMode && !modes.includes(trimmedMode)) {
-          await addDocument("paymentModes", { name: trimmedMode });
+        // Add packets if provided
+        if (value.packets && value.packets.trim()) {
+          const packetsNum = parseInt(value.packets.trim(), 10);
+          if (!isNaN(packetsNum) && packetsNum > 0) {
+            customerData.manuallyAddedPackets = packetsNum;
+          }
         }
+
+        await addDocument("customers", customerData);
 
         // Reset form after submit
         toast.success("Customer created successfully");
@@ -148,6 +148,47 @@ function CustomerForm() {
             )}
           </form.Field>
 
+          {/* Packets (Optional - for backfilling) */}
+          <form.Field
+            name="packets"
+            validators={{
+              onChange: ({ value }) => {
+                if (value && value.trim()) {
+                  const num = parseInt(value.trim(), 10);
+                  if (isNaN(num) || num < 0) {
+                    return "Please enter a valid number";
+                  }
+                }
+                return undefined;
+              },
+            }}
+          >
+            {(field) => (
+              <div className="space-y-1">
+                <label className="text-sm text-zinc-600 dark:text-zinc-300">
+                  Packets (Optional)
+                  <span className="text-xs text-zinc-400 ml-1">
+                    - For backfilling previous data
+                  </span>
+                </label>
+                <Input
+                  type="number"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  inputMode="numeric"
+                  min="0"
+                  placeholder="Enter number of packets"
+                />
+                {field.state.meta.errors[0] && (
+                  <p className="text-xs text-rose-600">
+                    {field.state.meta.errors[0]}
+                  </p>
+                )}
+              </div>
+            )}
+          </form.Field>
+
           <form.Subscribe
             selector={(state) => [state.canSubmit, state.isSubmitting]}
           >
@@ -178,6 +219,12 @@ function CustomerForm() {
                       <div className="text-zinc-500">Number</div>
                       <div className="font-medium text-zinc-900 dark:text-zinc-100 min-h-5">
                         {values.number?.trim() || "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-zinc-500">Packets</div>
+                      <div className="font-medium text-zinc-900 dark:text-zinc-100 min-h-5">
+                        {values.packets?.trim() || "—"}
                       </div>
                     </div>
                   </div>

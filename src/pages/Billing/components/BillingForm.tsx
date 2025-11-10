@@ -76,7 +76,7 @@ const BillingForm = () => {
     gstEnabled: false,
     gstPercent: 18,
     paymentMode: "",
-    lineItems: [],
+    lineItems: [{ itemId: "", itemName: "", quantity: 1, rate: 0 }],
     exisitingCustomerData: {
       id: "",
       name: "",
@@ -123,14 +123,20 @@ const BillingForm = () => {
     const bills = await readDocuments("bills");
     if (!bills || bills.length === 0) return null;
 
-    const mostRecent = bills.reduce((prev, curr) => {
+    // Filter bills for today's date
+    const todayBills = bills.filter((bill: any) => bill.dateKey === todayKey);
+    
+    if (todayBills.length === 0) return null;
+
+    // Get the most recent bill for today
+    const mostRecent = todayBills.reduce((prev, curr) => {
       const prevTime = prev?.createdAt?.seconds || 0;
       const currTime = curr?.createdAt?.seconds || 0;
       return currTime > prevTime ? curr : prev;
     });
 
     return mostRecent;
-  }, []);
+  }, [todayKey]);
 
   const generateInvoiceId = useCallback(
     async (recentBillId?: string) => {
@@ -139,8 +145,13 @@ const BillingForm = () => {
       if (recentBillId) {
         try {
           const parts = recentBillId.split("/");
-          const lastSeq = parseInt(parts[2], 10);
-          newSequence = String(lastSeq + 1).padStart(4, "0");
+          // Check if the dateKey matches today's dateKey
+          if (parts.length === 3 && parts[1] === todayKey) {
+            const lastSeq = parseInt(parts[2], 10);
+            if (!isNaN(lastSeq) && lastSeq >= 0) {
+              newSequence = String(lastSeq + 1).padStart(4, "0");
+            }
+          }
         } catch (err) {
           console.error("Failed to parse last invoice ID:", err);
         }
@@ -247,9 +258,18 @@ const BillingForm = () => {
       let finalId: string = values.id;
 
       if (idLocked || !finalId) {
-        finalId = await generateInvoiceId();
+        // Get the most recent bill for today to generate next ID
+        const mostRecentBill = await getMostRecentBill();
+        const recentInvoiceId = mostRecentBill?.invoiceId;
+        finalId = await generateInvoiceId(recentInvoiceId);
         const parts = finalId.split("/");
         seq = parseInt(parts[2], 10) || 0;
+      } else {
+        // If ID is manually set, extract sequence from it
+        const parts = finalId.split("/");
+        if (parts.length === 3 && parts[1] === todayKey) {
+          seq = parseInt(parts[2], 10) || 0;
+        }
       }
 
       for (const li of values.lineItems) {
@@ -328,6 +348,7 @@ const BillingForm = () => {
       setSubmitting(false);
       setIdLocked(false);
 
+      // Generate next invoice ID by incrementing from the saved bill
       const nextInvoice = await generateInvoiceId(finalId);
 
       setValues({
@@ -338,7 +359,7 @@ const BillingForm = () => {
         gstEnabled: false,
         paymentMode: "",
         gstPercent: 18,
-        lineItems: [],
+        lineItems: [{ itemId: "", itemName: "", quantity: 1, rate: 0 }],
         exisitingCustomerData: {
           id: "",
           name: "",
@@ -521,7 +542,7 @@ const BillingForm = () => {
               onClick={addLineItem}
             >
               <Plus className="size-4" />
-              Line item
+              Click to add new item
             </Button>
           </div>
         </div>
@@ -639,7 +660,7 @@ const BillingForm = () => {
         </div>
 
         {/* GST */}
-        <div className="flex items-center gap-2 pt-2">
+        {/* <div className="flex items-center gap-2 pt-2">
           <Checkbox
             id="gstEnabled"
             checked={values.gstEnabled}
@@ -661,7 +682,7 @@ const BillingForm = () => {
               />
             </div>
           ) : null}
-        </div>
+        </div> */}
 
         {/* Totals */}
         <div className="flex flex-col items-end gap-1">
@@ -706,3 +727,4 @@ const BillingForm = () => {
 };
 
 export default BillingForm;
+

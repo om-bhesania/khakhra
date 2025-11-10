@@ -4,7 +4,8 @@ import {
   FileText,
   Filter,
   IndianRupee,
-  Receipt
+  Receipt,
+  Package
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -43,29 +44,51 @@ interface Bill {
   note?: string;
 }
 
+interface Customer {
+  id: string;
+  name: string;
+  number: string;
+  manuallyAddedPackets?: number;
+}
+
 function CustomerHistory({ id }: HistoryProps) {
-  const { readDocuments, loading } = useFirestoreCRUD();
+  const { readDocuments, readDocById, loading } = useFirestoreCRUD();
   const [allBills, setAllBills] = useState<Bill[]>([]);
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const [dateFilter, setDateFilter] = useState<
     "all" | "7days" | "30days" | "90days"
   >("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
 
   const { id: idFromParam } = useParams();
-
-  // Use id here
+  const customerId = idFromParam || id;
 
   const getBillHistory = async () => {
     const res: any = await readDocuments("bills");
     const customerBills = res.filter(
-      (bill: Bill) => bill.exisitingCustomerData?.id === idFromParam || id
+      (bill: Bill) => bill.exisitingCustomerData?.id === customerId
     );
     setAllBills(customerBills);
   };
 
+  const getCustomerData = async () => {
+    if (customerId) {
+      try {
+        const customerData = await readDocById<Customer>("customers", customerId);
+        if (customerData) {
+          setCustomer(customerData);
+        }
+      } catch (error) {
+        console.error("Error fetching customer data:", error);
+      }
+    }
+  };
+
   useEffect(() => {
     getBillHistory();
-  }, [id]);
+    getCustomerData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId]);
 
   const getDate = (timestamp: { seconds: number }) => {
     return new Date(timestamp.seconds * 1000);
@@ -97,15 +120,17 @@ function CustomerHistory({ id }: HistoryProps) {
       0
     );
     const totalInvoices = filteredBills.length;
-    const totalItems = filteredBills.reduce(
+    const itemsFromBills = filteredBills.reduce(
       (sum, bill) =>
         sum +
         bill.lineItems.reduce((itemSum, item) => itemSum + item.quantity, 0),
       0
     );
+    const manuallyAddedPackets = customer?.manuallyAddedPackets || 0;
+    const totalItems = itemsFromBills + manuallyAddedPackets;
 
-    return { totalAmount, totalInvoices, totalItems };
-  }, [filteredBills]);
+    return { totalAmount, totalInvoices, totalItems, manuallyAddedPackets, itemsFromBills };
+  }, [filteredBills, customer]);
 
   const formatDate = (timestamp: { seconds: number }) => {
     return getDate(timestamp).toLocaleDateString("en-IN", {
@@ -133,7 +158,7 @@ function CustomerHistory({ id }: HistoryProps) {
     );
   }
 
-  const customerInfo = allBills[0]?.exisitingCustomerData;
+  const customerInfo = allBills[0]?.exisitingCustomerData || customer;
 
   return (
     <div className="max-w-7xl mx-auto p-6 bg-background min-h-screen">
@@ -141,9 +166,11 @@ function CustomerHistory({ id }: HistoryProps) {
       {customerInfo && (
         <div className="bg-card rounded-lg border shadow-sm p-6 mb-6">
           <h1 className="text-2xl font-bold text-foreground mb-2">
-            {customerInfo.name}
+            {customerInfo.name || (customerInfo as any).name}
           </h1>
-          <p className="text-muted-foreground">📞 {customerInfo.phone}</p>
+          <p className="text-muted-foreground">
+            📞 {customerInfo.phone || (customerInfo as any).number}
+          </p>
         </div>
       )}
 
@@ -182,11 +209,45 @@ function CustomerHistory({ id }: HistoryProps) {
               <p className="text-2xl font-bold text-foreground">
                 {summary.totalItems}
               </p>
+              {summary.manuallyAddedPackets > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  ({summary.itemsFromBills} from bills + {summary.manuallyAddedPackets} manually added)
+                </p>
+              )}
             </div>
             <FileText className="w-10 h-10 text-primary" />
           </div>
         </div>
       </div>
+
+      {/* Manually Added Packets Section */}
+      {summary.manuallyAddedPackets > 0 && (
+        <div className="bg-card rounded-lg border shadow-sm p-6 mb-6 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-lg">
+              <Package className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Manually Added Packets
+              </h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                <span className="font-semibold text-foreground">
+                  {summary.manuallyAddedPackets} packets
+                </span>{" "}
+                were added manually for backfilling previous data. These packets
+                are not associated with any bill.
+              </p>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 rounded text-amber-700 dark:text-amber-300">
+                  <FileText className="w-4 h-4" />
+                  No bill associated
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-card rounded-lg border shadow-sm p-4 mb-6">
@@ -241,7 +302,7 @@ function CustomerHistory({ id }: HistoryProps) {
       </div>
 
       {/* Bills List */}
-      {filteredBills.length === 0 ? (
+      {filteredBills.length === 0 && summary.manuallyAddedPackets === 0 ? (
         <div className="bg-card rounded-lg border shadow-sm p-12 text-center">
           <Receipt className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-foreground mb-2">
@@ -251,6 +312,16 @@ function CustomerHistory({ id }: HistoryProps) {
             {allBills.length === 0
               ? "This customer doesn't have any invoices yet."
               : "No invoices found for the selected date range."}
+          </p>
+        </div>
+      ) : filteredBills.length === 0 && summary.manuallyAddedPackets > 0 ? (
+        <div className="bg-card rounded-lg border shadow-sm p-12 text-center">
+          <Package className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-foreground mb-2">
+            No Bills Yet
+          </h3>
+          <p className="text-muted-foreground">
+            This customer has {summary.manuallyAddedPackets} manually added packet(s) but no invoices yet.
           </p>
         </div>
       ) : (
