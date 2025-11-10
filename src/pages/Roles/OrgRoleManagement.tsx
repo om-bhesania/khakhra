@@ -41,9 +41,8 @@ const OrgRoleManagement = () => {
     createOrgRole,
     updateRolePermission,
     SYSTEM_MODULES,
-    hasPermission,
   } = useOrgRBAC();
-  
+
   const { readDocuments } = useFirestoreCRUD();
 
   const [roles, setRoles] = useState<OrgRole[]>([]);
@@ -200,11 +199,14 @@ const OrgRoleManagement = () => {
         <Card>
           <CardHeader>
             <CardTitle>Role Management</CardTitle>
-            <CardDescription>Manage roles and permissions for your organization</CardDescription>
+            <CardDescription>
+              Manage roles and permissions for your organization
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">
-              You are not part of an organization. Please contact your administrator.
+              You are not part of an organization. Please contact your
+              administrator.
             </p>
           </CardContent>
         </Card>
@@ -218,7 +220,9 @@ const OrgRoleManagement = () => {
         <Card>
           <CardHeader>
             <CardTitle>Role Management</CardTitle>
-            <CardDescription>Manage roles and permissions for your organization</CardDescription>
+            <CardDescription>
+              Manage roles and permissions for your organization
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">
@@ -255,7 +259,8 @@ const OrgRoleManagement = () => {
                 <DialogHeader>
                   <DialogTitle>Create New Role</DialogTitle>
                   <DialogDescription>
-                    Create a new role with custom permissions for your organization.
+                    Create a new role with custom permissions for your
+                    organization.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -325,4 +330,3 @@ const OrgRoleManagement = () => {
 };
 
 export default OrgRoleManagement;
-

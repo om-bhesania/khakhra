@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { ADMIN_EMAIL, type RbacAction } from "@/utils/Constants";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/config/firebase.config";
@@ -32,7 +39,10 @@ function RBACProviderInner({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [definition, setDefinition] = useState<RbacDefinition | null>(null);
-  const [permissions, setPermissions] = useState<Record<string, RbacAction[]> | null>(null);
+  const [permissions, setPermissions] = useState<Record<
+    string,
+    RbacAction[]
+  > | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [orgPermissions, setOrgPermissions] = useState<Record<string, any>>({});
@@ -50,13 +60,14 @@ function RBACProviderInner({ children }: { children: ReactNode }) {
           const data = userDoc.exists() ? (userDoc.data() as any) : null;
           const r = (data?.role as string) || null;
           setRole(r);
-          const perms = (data?.permissions as Record<string, RbacAction[]>) || null;
+          const perms =
+            (data?.permissions as Record<string, RbacAction[]>) || null;
           setPermissions(perms);
-          
+
           // Check if user is in organization
           const orgId = data?.organizationId;
           setOrganizationId(orgId || null);
-          
+
           if (orgId) {
             // Check if user is owner
             const orgDoc = await getDoc(doc(db, "organizations", orgId));
@@ -79,7 +90,7 @@ function RBACProviderInner({ children }: { children: ReactNode }) {
     });
     return () => unsub();
   }, []);
-  
+
   // Sync org RBAC state
   useEffect(() => {
     if (orgRBAC.organizationId) {
@@ -93,7 +104,7 @@ function RBACProviderInner({ children }: { children: ReactNode }) {
     // Load merged RBAC definition from RolesAndPermssions collection (doc: default)
     // Only load if not using org RBAC
     if (isUsingOrgRBAC) return;
-    
+
     (async () => {
       try {
         const defDoc = await getDoc(doc(db, "RolesAndPermssions", "default"));
@@ -107,7 +118,8 @@ function RBACProviderInner({ children }: { children: ReactNode }) {
         rolesSnap.forEach((d) => {
           merged[d.id] = d.data();
         });
-        if (Object.keys(merged).length > 0) setDefinition(merged as RbacDefinition);
+        if (Object.keys(merged).length > 0)
+          setDefinition(merged as RbacDefinition);
       } catch (_e) {
         // ignore; definition stays null
       }
@@ -119,22 +131,16 @@ function RBACProviderInner({ children }: { children: ReactNode }) {
     return !!email && email === ADMIN_EMAIL.toLowerCase();
   }, [user]);
 
-  // Map org RBAC actions to legacy actions
-  const mapOrgActionToLegacy = (action: RbacAction): "create" | "read" | "update" | "delete" => {
-    // Map legacy actions to org RBAC actions
-    if (action === "write") return "create";
-    return action as "create" | "read" | "update" | "delete";
-  };
-
+ 
   const can = useMemo(() => {
     return (moduleKey: string, action: RbacAction): boolean => {
       if (isAdminEmail) return true;
-      
+
       // If using org RBAC, check org permissions
       if (isUsingOrgRBAC && organizationId) {
         // Owner has all permissions
         if (isOwner) return true;
-        
+
         // Map module names (legacy uses different names)
         const moduleMap: Record<string, string> = {
           dashboard: "dashboard",
@@ -143,14 +149,13 @@ function RBACProviderInner({ children }: { children: ReactNode }) {
           customers: "customer",
           employees: "employees",
         };
-        
+
         const orgModuleId = moduleMap[moduleKey] || moduleKey;
-        const orgAction = mapOrgActionToLegacy(action);
-        
+
         // Check org permissions
         const modulePerms = orgPermissions[orgModuleId];
         if (!modulePerms) return false;
-        
+
         // Map action names
         const actionMap: Record<string, keyof typeof modulePerms> = {
           create: "create",
@@ -159,11 +164,11 @@ function RBACProviderInner({ children }: { children: ReactNode }) {
           update: "update",
           delete: "delete",
         };
-        
+
         const permKey = actionMap[action] || action;
         return !!modulePerms[permKey];
       }
-      
+
       // Legacy RBAC system
       // Prefer explicit permissions from the user profile if present
       if (permissions) {
@@ -174,11 +179,37 @@ function RBACProviderInner({ children }: { children: ReactNode }) {
       const actions = definition[role]?.module?.[moduleKey] || [];
       return actions.includes(action);
     };
-  }, [isAdminEmail, isUsingOrgRBAC, organizationId, isOwner, orgPermissions, permissions, role, definition]);
+  }, [
+    isAdminEmail,
+    isUsingOrgRBAC,
+    organizationId,
+    isOwner,
+    orgPermissions,
+    permissions,
+    role,
+    definition,
+  ]);
 
   const value = useMemo(
-    () => ({ user, loading: loading || orgRBAC.loading, role, definition, isAdminEmail, permissions, can }),
-    [user, loading, orgRBAC.loading, role, definition, isAdminEmail, permissions, can]
+    () => ({
+      user,
+      loading: loading || orgRBAC.loading,
+      role,
+      definition,
+      isAdminEmail,
+      permissions,
+      can,
+    }),
+    [
+      user,
+      loading,
+      orgRBAC.loading,
+      role,
+      definition,
+      isAdminEmail,
+      permissions,
+      can,
+    ]
   );
 
   return <RBACContext.Provider value={value}>{children}</RBACContext.Provider>;
@@ -200,5 +231,3 @@ export function RequireAdminEmail({ children }: { children: ReactNode }) {
   if (!isAdminEmail) return null;
   return <>{children}</>;
 }
-
-

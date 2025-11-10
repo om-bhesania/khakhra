@@ -286,6 +286,7 @@ const Settings = () => {
       });
 
       // Custom replacer to properly serialize Firestore Timestamps
+      // @ts-ignore
       const timestampReplacer = (key: string, value: any) => {
         // Handle Firestore Timestamp objects
         if (value && typeof value === 'object') {

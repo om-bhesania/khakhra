@@ -4,33 +4,25 @@ import { Input } from "@/components/ui/input";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { useForm } from "@tanstack/react-form";
 import { IndianRupee } from "lucide-react";
-import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 function InventoryForm() {
-  const { addDocument, subscribeToCollection, readDocuments } =
-    useFirestoreCRUD();
-  const [inventory, setInventory] = useState<string[]>([]);
+  const { addDocument } = useFirestoreCRUD();
 
   // Load and subscribe payment modes
-  useEffect(() => {
-    let unsub: (() => void) | undefined;
-    (async () => {
-      const initial = await readDocuments<{ name: string }>("inventory");
-      setInventory(
-        initial.map((m) => String((m as any).price)).filter(Boolean)
-      );
+  // useEffect(() => {
+  //   let unsub: (() => void) | undefined;
+  //   (async () => {
+  //     const initial = await readDocuments<{ name: string }>("inventory");
 
-      unsub = subscribeToCollection("inventory", {
-        onUpdate: (data: Array<{ name: string }>) => {
-          setInventory(data.map((d) => String(d.name)).filter(Boolean));
-        },
-      } as any);
-    })();
-    return () => {
-      if (typeof unsub === "function") unsub();
-    };
-  }, [readDocuments, subscribeToCollection]);
+  //     unsub = subscribeToCollection("inventory", {
+  //       onUpdate: (data: Array<{ name: string }>) => {},
+  //     } as any);
+  //   })();
+  //   return () => {
+  //     if (typeof unsub === "function") unsub();
+  //   };
+  // }, [readDocuments, subscribeToCollection]);
   const form = useForm({
     defaultValues: {
       name: "",
@@ -276,9 +268,7 @@ function InventoryForm() {
                     <div>
                       <div className="text-zinc-500">Name</div>
                       <div className="font-medium text-zinc-900 dark:text-zinc-100 min-h-5">
-                        {values.price
-                          ? values.name
-                          : "—"}
+                        {values.price ? values.name : "—"}
                       </div>
                     </div>
                     <div>

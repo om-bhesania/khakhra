@@ -44,18 +44,20 @@ export interface OrgMember {
  */
 export function useOrgRBAC() {
   const { user } = useAuth();
-  const { 
-    readDocuments, 
-    addDocument, 
-    updateDocument, 
+  const {
+    readDocuments,
+    addDocument,
+    updateDocument,
     readDocById,
-    getCurrentUserProfile 
+    getCurrentUserProfile,
   } = useFirestoreCRUD();
 
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [memberRole, setMemberRole] = useState<OrgRole | null>(null);
-  const [memberPermissions, setMemberPermissions] = useState<Record<string, ModulePermission>>({});
+  const [memberPermissions, setMemberPermissions] = useState<
+    Record<string, ModulePermission>
+  >({});
   const [loading, setLoading] = useState(true);
 
   // Load user's organization and role
@@ -128,7 +130,7 @@ export function useOrgRBAC() {
         `organizations/${orgId}/roles`,
         roleId
       );
-      
+
       const roles = roleDoc ? [roleDoc] : [];
 
       if (roles.length > 0) {
@@ -170,7 +172,7 @@ export function useOrgRBAC() {
     const allRoles = await readDocuments<OrgRole>(
       `organizations/${orgId}/roles`
     );
-    
+
     const ownerRole = allRoles.find((r) => r.name === "Owner" && r.isSystem);
 
     if (ownerRole) {
@@ -188,21 +190,29 @@ export function useOrgRBAC() {
       createdBy: user!.uid,
     };
 
-    const newRole = await addDocument(`organizations/${orgId}/roles`, ownerRoleData);
-    return { ...ownerRoleData, id: newRole.id } as OrgRole;
+    const newRole = await addDocument(
+      `organizations/${orgId}/roles`,
+      ownerRoleData
+    );
+    return { ...ownerRoleData, id: newRole?.id || "" } as OrgRole;
   };
 
   /**
    * Get or create default Employee role with read-only permissions
    * This ensures new employees can see all modules but can't perform CRUD until owner grants permissions
    */
-  const getOrCreateEmployeeRole = async (orgId: string, createdBy: string): Promise<OrgRole> => {
+  const getOrCreateEmployeeRole = async (
+    orgId: string,
+    createdBy: string
+  ): Promise<OrgRole> => {
     // Check if employee role exists
     const allRoles = await readDocuments<OrgRole>(
       `organizations/${orgId}/roles`
     );
-    
-    let employeeRole = allRoles.find((r) => r.name === "Employee" && r.isSystem);
+
+    let employeeRole = allRoles.find(
+      (r) => r.name === "Employee" && r.isSystem
+    );
 
     if (employeeRole) {
       // Ensure Employee role has read-only permissions set up
@@ -221,8 +231,11 @@ export function useOrgRBAC() {
       createdBy: createdBy,
     };
 
-    const newRole = await addDocument(`organizations/${orgId}/roles`, employeeRoleData);
-    employeeRole = { ...employeeRoleData, id: newRole.id } as OrgRole;
+    const newRole = await addDocument(
+      `organizations/${orgId}/roles`,
+      employeeRoleData
+    );
+    employeeRole = { ...employeeRoleData, id: newRole?.id || null } as OrgRole;
 
     // Set up read-only permissions for all modules
     await ensureEmployeeRolePermissions(orgId, employeeRole.id, createdBy);
@@ -302,10 +315,21 @@ export function useOrgRBAC() {
 
       // If Employee role has no permissions, create default read-only permissions
       // This handles existing organizations that were created before this fix
-      if (role && role.name === "Employee" && role.isSystem && permissions.length === 0) {
-        console.log("Employee role has no permissions, creating default read-only permissions");
-        await ensureEmployeeRolePermissions(orgId, roleId, user?.uid || "system");
-        
+      if (
+        role &&
+        role.name === "Employee" &&
+        role.isSystem &&
+        permissions.length === 0
+      ) {
+        console.log(
+          "Employee role has no permissions, creating default read-only permissions"
+        );
+        await ensureEmployeeRolePermissions(
+          orgId,
+          roleId,
+          user?.uid || "system"
+        );
+
         // Reload permissions after creating them
         const newPermissions = await readDocuments<OrgPermission>(
           `organizations/${orgId}/permissions`,
@@ -313,10 +337,12 @@ export function useOrgRBAC() {
             where: [{ field: "roleId", operator: "==", value: roleId }],
           }
         );
-        
+
         const permMap: Record<string, ModulePermission> = {};
         SYSTEM_MODULES.forEach((module) => {
-          const modulePerm = newPermissions.find((p) => p.moduleId === module.id);
+          const modulePerm = newPermissions.find(
+            (p) => p.moduleId === module.id
+          );
           if (modulePerm) {
             permMap[module.id] = modulePerm.permissions;
           } else {
@@ -329,7 +355,7 @@ export function useOrgRBAC() {
             };
           }
         });
-        
+
         setMemberPermissions(permMap);
         return;
       }
@@ -397,8 +423,11 @@ export function useOrgRBAC() {
         createdBy: user.uid,
       };
 
-      const newRole = await addDocument(`organizations/${orgId}/roles`, roleData);
-      return newRole.id;
+      const newRole = await addDocument(
+        `organizations/${orgId}/roles`,
+        roleData
+      );
+      return newRole?.id || null;
     } catch (error) {
       console.error("Error creating org role:", error);
       toast.error("Failed to create role");
@@ -489,14 +518,10 @@ export function useOrgRBAC() {
       const member = members[0];
 
       // Update member role
-      await updateDocument(
-        `organizations/${orgId}/members`,
-        member.id,
-        {
-          roleId,
-          updatedAt: Timestamp.now(),
-        }
-      );
+      await updateDocument(`organizations/${orgId}/members`, member.id, {
+        roleId,
+        updatedAt: Timestamp.now(),
+      });
 
       // Load permissions for the new role and update member record
       const permissions = await readDocuments<OrgPermission>(
@@ -522,13 +547,9 @@ export function useOrgRBAC() {
       });
 
       // Update member permissions cache
-      await updateDocument(
-        `organizations/${orgId}/members`,
-        member.id,
-        {
-          permissions: permMap,
-        }
-      );
+      await updateDocument(`organizations/${orgId}/members`, member.id, {
+        permissions: permMap,
+      });
 
       toast.success("Role assigned successfully");
       return true;
@@ -585,4 +606,3 @@ export function useOrgRBAC() {
     SYSTEM_MODULES,
   };
 }
-
