@@ -9,6 +9,7 @@ export const customerColumns = (
 ): ColumnDef<any>[] => [
   { accessorKey: "name", header: "Name" },
   { accessorKey: "number", header: "Number" },
+  { accessorKey: "manuallyAddedPackets", header: "Packets" },
   {
     accessorKey: "createdAt",
     header: "Created At",
@@ -31,8 +32,8 @@ export const customerColumns = (
           <GenericActions
             collection="customers"
             record={row.original}
-            editableFields={["name", "number"]}
-            labelMap={{ name: "Name", number: "Number" }}
+            editableFields={["name", "manuallyAddedPackets", "number"]}
+            labelMap={{ name: "Name",manuallyAddedPackets: "Packets", number: "Number" }}
             onAfterDelete={() =>
               setData((prev) => prev.filter((i) => i.id !== row.original.id))
             }

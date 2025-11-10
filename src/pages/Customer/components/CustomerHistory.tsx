@@ -5,7 +5,7 @@ import {
   Filter,
   IndianRupee,
   Receipt,
-  Package
+  Package,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -74,7 +74,10 @@ function CustomerHistory({ id }: HistoryProps) {
   const getCustomerData = async () => {
     if (customerId) {
       try {
-        const customerData = await readDocById<Customer>("customers", customerId);
+        const customerData = await readDocById<Customer>(
+          "customers",
+          customerId
+        );
         if (customerData) {
           setCustomer(customerData);
         }
@@ -127,9 +130,15 @@ function CustomerHistory({ id }: HistoryProps) {
       0
     );
     const manuallyAddedPackets = customer?.manuallyAddedPackets || 0;
-    const totalItems = itemsFromBills + manuallyAddedPackets;
+    const totalItems = Number(itemsFromBills) + Number(manuallyAddedPackets);
 
-    return { totalAmount, totalInvoices, totalItems, manuallyAddedPackets, itemsFromBills };
+    return {
+      totalAmount: Number(totalAmount),
+      totalInvoices: Number(totalInvoices),
+      totalItems: Number(totalItems),
+      manuallyAddedPackets: Number(manuallyAddedPackets),
+      itemsFromBills: Number(itemsFromBills),
+    };
   }, [filteredBills, customer]);
 
   const formatDate = (timestamp: { seconds: number }) => {
@@ -211,7 +220,8 @@ function CustomerHistory({ id }: HistoryProps) {
               </p>
               {summary.manuallyAddedPackets > 0 && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  ({summary.itemsFromBills} from bills + {summary.manuallyAddedPackets} manually added)
+                  ({summary.itemsFromBills} from bills +{" "}
+                  {summary.manuallyAddedPackets} manually added)
                 </p>
               )}
             </div>
@@ -321,7 +331,8 @@ function CustomerHistory({ id }: HistoryProps) {
             No Bills Yet
           </h3>
           <p className="text-muted-foreground">
-            This customer has {summary.manuallyAddedPackets} manually added packet(s) but no invoices yet.
+            This customer has {summary.manuallyAddedPackets} manually added
+            packet(s) but no invoices yet.
           </p>
         </div>
       ) : (

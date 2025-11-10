@@ -122,20 +122,15 @@ const BillingForm = () => {
     const bills = await readDocuments("bills");
     if (!bills || bills.length === 0) return null;
 
-    // Filter bills for today's date
-    const todayBills = bills.filter((bill: any) => bill.dateKey === todayKey);
-    
-    if (todayBills.length === 0) return null;
-
-    // Get the most recent bill for today
-    const mostRecent = todayBills.reduce((prev, curr) => {
+    // Get the most recent bill overall (linear progression across all days)
+    const mostRecent = bills.reduce((prev, curr) => {
       const prevTime = prev?.createdAt?.seconds || 0;
       const currTime = curr?.createdAt?.seconds || 0;
       return currTime > prevTime ? curr : prev;
     });
 
     return mostRecent;
-  }, [todayKey]);
+  }, []);
 
   const generateInvoiceId = useCallback(
     async (recentBillId?: string) => {
@@ -144,8 +139,9 @@ const BillingForm = () => {
       if (recentBillId) {
         try {
           const parts = recentBillId.split("/");
-          // Check if the dateKey matches today's dateKey
-          if (parts.length === 3 && parts[1] === todayKey) {
+          // Extract sequence number from the most recent bill and increment it
+          // This ensures linear progression regardless of date
+          if (parts.length === 3) {
             const lastSeq = parseInt(parts[2], 10);
             if (!isNaN(lastSeq) && lastSeq >= 0) {
               newSequence = String(lastSeq + 1).padStart(4, "0");
@@ -156,6 +152,7 @@ const BillingForm = () => {
         }
       }
 
+      // Always use today's date in the invoice ID, but sequence continues linearly
       return `INV/${todayKey}/${newSequence}`;
     },
     [todayKey]
@@ -257,7 +254,7 @@ const BillingForm = () => {
       let finalId: string = values.id;
 
       if (idLocked || !finalId) {
-        // Get the most recent bill for today to generate next ID
+        // Get the most recent bill overall to generate next ID (linear progression)
         const mostRecentBill = await getMostRecentBill();
         const recentInvoiceId = mostRecentBill?.invoiceId;
         finalId = await generateInvoiceId(recentInvoiceId);
@@ -266,7 +263,7 @@ const BillingForm = () => {
       } else {
         // If ID is manually set, extract sequence from it
         const parts = finalId.split("/");
-        if (parts.length === 3 && parts[1] === todayKey) {
+        if (parts.length === 3) {
           seq = parseInt(parts[2], 10) || 0;
         }
       }
