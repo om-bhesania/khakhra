@@ -1,7 +1,6 @@
 import { CustomerCombobox } from "@/components/ComboBox";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
+import { COMPANY_CONFIG } from "@/lib/utils";
 import { ChevronDown, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import {
   useCallback,
@@ -33,7 +33,6 @@ import {
   printBill,
   type BillData,
 } from "../../../lib/billGenerator";
-import { COMPANY_CONFIG } from "@/lib/utils";
 
 type LineItem = {
   itemId: string;

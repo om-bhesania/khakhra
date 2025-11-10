@@ -10,6 +10,7 @@ import { toast } from "sonner";
 function CustomerForm() {
   const { addDocument, readDocuments, subscribeToCollection } =
     useFirestoreCRUD();
+  //@ts-ignore
   const [modes, setModes] = useState<string[]>([]);
 
   const [nameFromUrl, setNameFromUrl] = useState<string>("");
