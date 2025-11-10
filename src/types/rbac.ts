@@ -56,6 +56,7 @@ export interface Module {
 
 // Available modules in the system
 export const SYSTEM_MODULES: Module[] = [
+  { id: 'dashboard', name: 'Dashboard', isSystem: true },
   { id: 'inventory', name: 'Inventory', isSystem: true },
   { id: 'billing', name: 'Billing', isSystem: true },
   { id: 'customer', name: 'Customer', isSystem: true },

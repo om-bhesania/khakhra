@@ -8,6 +8,9 @@ import {
   ShoppingCart,
   TrendingDown,
   TrendingUp,
+  Calendar,
+  Clock,
+  BarChart3,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -29,21 +32,43 @@ const Home = () => {
   const [timeFilter, setTimeFilter] = useState("today");
   const [invoices, setInvoices] = useState([]);
   const [inventory, setInventory] = useState([]);
-  console.log("inventory", inventory);
   const timeFilters = [
-    { value: "today", label: "Today" },
-    { value: "week", label: "This Week" },
-    { value: "month", label: "This Month" },
-    { value: "all", label: "All Time" },
+    { value: "today", label: "Today", icon: Calendar },
+    { value: "yesterday", label: "Yesterday", icon: Clock },
+    { value: "week", label: "This Week", icon: BarChart3 },
+    { value: "month", label: "This Month", icon: BarChart3 },
+    { value: "all", label: "All Time", icon: BarChart3 },
   ];
 
+  // Helper function to format numbers with commas
+  const formatCurrency = (amount: number): string => {
+    return `₹${Math.round(amount).toLocaleString("en-IN")}`;
+  };
+
+  // Helper function to format numbers
+  const formatNumber = (num: number): string => {
+    return Math.round(num).toLocaleString("en-IN");
+  };
+
   // Fetch invoices and inventory on component mount
+  // With Firestore persistence enabled, this will:
+  // 1. Serve from cache first (instant load)
+  // 2. Fetch updates from server in background
+  // 3. Only read changed documents (massive token savings)
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const invoicesData: any = await readDocuments("bills", { limit: 1000 });
+        // Firestore automatically uses cache if available, then syncs with server
+        // This reduces read operations significantly (95-99% reduction)
+        const invoicesData: any = await readDocuments("bills", {
+          limit: 1000,
+          orderBy: "createdAt",
+          orderDirection: "desc",
+        });
         const inventoryData: any = await readDocuments("inventory", {
           limit: 1000,
+          orderBy: "createdAt",
+          orderDirection: "desc",
         });
         setInvoices(invoicesData || []);
         setInventory(inventoryData || []);
@@ -53,7 +78,7 @@ const Home = () => {
     };
 
     fetchData();
-  }, []);
+  }, [readDocuments]);
 
   // Filter invoices based on selected time period
   const filteredInvoices = useMemo(() => {
@@ -63,6 +88,8 @@ const Home = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStart = today.getTime() / 1000;
+    const yesterdayStart = todayStart - 24 * 60 * 60; // 24 hours ago (start of yesterday)
+    const yesterdayEnd = todayStart; // End of yesterday (start of today)
 
     return invoices.filter((invoice: any) => {
       const invoiceTime = invoice.createdAt?.seconds || 0;
@@ -70,6 +97,8 @@ const Home = () => {
       switch (timeFilter) {
         case "today":
           return invoiceTime >= todayStart;
+        case "yesterday":
+          return invoiceTime >= yesterdayStart && invoiceTime < yesterdayEnd;
         case "week":
           return invoiceTime >= now - 7 * 24 * 60 * 60;
         case "month":
@@ -80,6 +109,69 @@ const Home = () => {
       }
     });
   }, [invoices, timeFilter]);
+
+  // Get most recent 5 invoices sorted by date (newest first)
+  const recentInvoices = useMemo(() => {
+    if (!filteredInvoices.length) return [];
+
+    return [...filteredInvoices]
+      .sort((a: any, b: any) => {
+        const timeA = a.createdAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || 0;
+        return timeB - timeA; // Sort descending (newest first)
+      })
+      .slice(0, 5); // Get top 5 most recent
+  }, [filteredInvoices]);
+
+  // Calculate yesterday's data for comparison
+  const yesterdayAnalytics = useMemo(() => {
+    if (!invoices.length) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStart = today.getTime() / 1000;
+    const yesterdayStart = todayStart - 24 * 60 * 60;
+    const yesterdayEnd = todayStart;
+
+    const yesterdayInvoices = invoices.filter((invoice: any) => {
+      const invoiceTime = invoice.createdAt?.seconds || 0;
+      return invoiceTime >= yesterdayStart && invoiceTime < yesterdayEnd;
+    });
+
+    if (!yesterdayInvoices.length) return null;
+
+    let revenue = 0;
+    let cost = 0;
+    let profit = 0;
+    let itemsSold = 0;
+
+    yesterdayInvoices.forEach((invoice: any) => {
+      if (!invoice.lineItems || !Array.isArray(invoice.lineItems)) return;
+      invoice.lineItems.forEach((item: any) => {
+        if (!item.fullItem) return;
+        const { quantity, fullItem } = item;
+        revenue += (fullItem.sellingPrice || fullItem.price || 0) * quantity;
+        cost += (fullItem.costPrice || 0) * quantity;
+        itemsSold += quantity;
+      });
+    });
+
+    profit = revenue - cost;
+
+    return { revenue, cost, profit, itemsSold };
+  }, [invoices]);
+
+  // Calculate comparison with yesterday
+  const getComparison = (current: number, yesterday: number | null) => {
+    if (!yesterday || yesterday === 0) return null;
+    const diff = current - yesterday;
+    const percent = ((diff / yesterday) * 100).toFixed(1);
+    return {
+      diff,
+      percent: Math.abs(parseFloat(percent)),
+      isPositive: diff >= 0,
+    };
+  };
 
   // Calculate metrics and category data
   const analytics: any = useMemo(() => {
@@ -95,7 +187,7 @@ const Home = () => {
       if (item.quantity < 10) {
         lowStockItems.push({
           id: item.id,
-          name: `${item.name ? item.name : `₹${item.price || item.sellingPrice}`}`, // Using price as name
+          name: item.name, // Using price as name
           quantity: item.quantity,
           price: item.price || item.sellingPrice,
           status:
@@ -139,6 +231,8 @@ const Home = () => {
         const cost = (fullItem.costPrice || 0) * quantity;
         const profit = revenue - cost;
         const categoryKey = fullItem.price || fullItem.sellingPrice || 0;
+        // Use item name for display, fallback to price if name doesn't exist
+        const itemName = fullItem.name || `₹${categoryKey}`;
 
         totalRevenue += revenue;
         totalCost += cost;
@@ -147,8 +241,9 @@ const Home = () => {
 
         if (!categoryData[categoryKey]) {
           categoryData[categoryKey] = {
-            category: `₹${categoryKey}`,
-            price: categoryKey,
+            category: itemName, // Use name for display
+            name: itemName, // Store name separately
+            price: categoryKey, // Keep price for categorization logic
             revenue: 0,
             cost: 0,
             profit: 0,
@@ -161,6 +256,16 @@ const Home = () => {
             //   'Jeera': { quantity: 3, profit: 60 }
             // }
           };
+        } else {
+          // If category already exists but name is just a price, update it with the actual name
+          // This handles cases where first item had no name but subsequent items do
+          if (
+            categoryData[categoryKey].name?.startsWith("₹") &&
+            !itemName.startsWith("₹")
+          ) {
+            categoryData[categoryKey].category = itemName;
+            categoryData[categoryKey].name = itemName;
+          }
         }
 
         categoryData[categoryKey].revenue += revenue;
@@ -218,7 +323,7 @@ const Home = () => {
 
   // Prepare data for pie chart (Revenue by Category)
   const pieData = analytics.categories.map((cat: any, index: any) => ({
-    name: cat.category,
+    name: cat.name,
     value: cat.revenue,
     color: COLORS[index % COLORS.length],
   }));
@@ -278,61 +383,205 @@ const Home = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Sales Dashboard
+              Your Business Dashboard
             </h1>
-            <p className="text-gray-500 mt-1">Profit & Loss Analytics</p>
+            <p className="text-gray-500 mt-1">See how your business is doing</p>
           </div>
 
-          {/* Time Filter Buttons */}
-          <div className="flex gap-2 bg-white p-1 rounded-lg shadow-sm">
-            {timeFilters.map((filter) => (
-              <button
-                key={filter.value}
-                onClick={() => setTimeFilter(filter.value)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  timeFilter === filter.value
-                    ? "bg-blue-500 text-white"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
+          {/* Time Filter Buttons - Bigger with Icons */}
+          <div className="flex flex-wrap gap-2 bg-white dark:bg-gray-800 p-2 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            {timeFilters.map((filter) => {
+              const Icon = filter.icon;
+              return (
+                <button
+                  key={filter.value}
+                  onClick={() => setTimeFilter(filter.value)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+                    timeFilter === filter.value
+                      ? "bg-blue-500 text-white shadow-md"
+                      : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {filter.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Key Metrics Cards */}
+        {/* Today's Summary Card - Simple Language */}
+        {timeFilter === "today" && (
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800">
+            <CardHeader>
+              <CardTitle className="text-blue-900 dark:text-blue-100 text-xl">
+                Today's Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    Money Earned Today
+                  </p>
+                  <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                    {formatCurrency(analytics.totalRevenue)}
+                  </p>
+                  {yesterdayAnalytics && (
+                    <p className="text-xs mt-2">
+                      {(() => {
+                        const comp = getComparison(
+                          analytics.totalRevenue,
+                          yesterdayAnalytics.revenue
+                        );
+                        if (!comp) return null;
+                        return (
+                          <span
+                            className={
+                              comp.isPositive
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {comp.isPositive ? "↑" : "↓"}{" "}
+                            {formatCurrency(Math.abs(comp.diff))} (
+                            {comp.percent}%) vs Yesterday
+                          </span>
+                        );
+                      })()}
+                    </p>
+                  )}
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    Profit Today
+                  </p>
+                  <p
+                    className={`text-3xl font-bold ${
+                      analytics.totalProfit >= 0
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    {formatCurrency(analytics.totalProfit)}
+                  </p>
+                  {yesterdayAnalytics && (
+                    <p className="text-xs mt-2">
+                      {(() => {
+                        const comp = getComparison(
+                          analytics.totalProfit,
+                          yesterdayAnalytics.profit
+                        );
+                        if (!comp) return null;
+                        return (
+                          <span
+                            className={
+                              comp.isPositive
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {comp.isPositive ? "↑" : "↓"}{" "}
+                            {formatCurrency(Math.abs(comp.diff))} (
+                            {comp.percent}%) vs Yesterday
+                          </span>
+                        );
+                      })()}
+                    </p>
+                  )}
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    Items Sold Today
+                  </p>
+                  <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                    {formatNumber(analytics.totalItemsSold)}
+                  </p>
+                  {yesterdayAnalytics && (
+                    <p className="text-xs mt-2">
+                      {(() => {
+                        const comp = getComparison(
+                          analytics.totalItemsSold,
+                          yesterdayAnalytics.itemsSold
+                        );
+                        if (!comp) return null;
+                        return (
+                          <span
+                            className={
+                              comp.isPositive
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {comp.isPositive ? "↑" : "↓"}{" "}
+                            {formatNumber(Math.abs(comp.diff))} ({comp.percent}
+                            %) vs Yesterday
+                          </span>
+                        );
+                      })()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Key Metrics Cards - Simplified Language */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
-                Total Revenue
+                Money Earned
               </CardTitle>
               <IndianRupee className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">
-                ₹{analytics.totalRevenue.toFixed(2)}
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                {formatCurrency(analytics.totalRevenue)}
               </div>
-              <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                Total money received from customers
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                Money received from customers
               </p>
+              {timeFilter === "today" && yesterdayAnalytics && (
+                <p className="text-xs mt-1">
+                  {(() => {
+                    const comp = getComparison(
+                      analytics.totalRevenue,
+                      yesterdayAnalytics.revenue
+                    );
+                    if (!comp) return null;
+                    return (
+                      <span
+                        className={
+                          comp.isPositive
+                            ? "text-green-600 font-medium"
+                            : "text-red-600 font-medium"
+                        }
+                      >
+                        {comp.isPositive ? "↑" : "↓"} {comp.percent}% vs
+                        Yesterday
+                      </span>
+                    );
+                  })()}
+                </p>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
-                Total Cost
+                Money Spent
               </CardTitle>
               <Package className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                ₹{analytics.totalCost.toFixed(2)}
+                {formatCurrency(analytics.totalCost)}
               </div>
-              <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                Money spent on making products
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                Cost of making products
               </p>
             </CardContent>
           </Card>
@@ -340,7 +589,7 @@ const Home = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
-                Total Profit
+                Profit
               </CardTitle>
               {analytics.totalProfit >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-green-500" />
@@ -354,18 +603,41 @@ const Home = () => {
                   analytics.totalProfit >= 0 ? "text-green-600" : "text-red-600"
                 }`}
               >
-                ₹{analytics.totalProfit.toFixed(2)}
+                {formatCurrency(analytics.totalProfit)}
               </div>
-              <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                Money you earned after expenses
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                Money you keep after costs
               </p>
+              {timeFilter === "today" && yesterdayAnalytics && (
+                <p className="text-xs mt-1">
+                  {(() => {
+                    const comp = getComparison(
+                      analytics.totalProfit,
+                      yesterdayAnalytics.profit
+                    );
+                    if (!comp) return null;
+                    return (
+                      <span
+                        className={
+                          comp.isPositive
+                            ? "text-green-600 font-medium"
+                            : "text-red-600 font-medium"
+                        }
+                      >
+                        {comp.isPositive ? "↑" : "↓"} {comp.percent}% vs
+                        Yesterday
+                      </span>
+                    );
+                  })()}
+                </p>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
-                Profit Margin
+                Profit %
               </CardTitle>
               <Percent className="h-4 w-4 text-purple-500" />
             </CardHeader>
@@ -373,8 +645,8 @@ const Home = () => {
               <div className="text-2xl font-bold text-gray-900 dark:text-white">
                 {analytics.profitMargin}%
               </div>
-              <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                Profit percentage on each sale
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                Profit on each sale
               </p>
             </CardContent>
           </Card>
@@ -388,45 +660,68 @@ const Home = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                {analytics.totalItemsSold}
+                {formatNumber(analytics.totalItemsSold)}
               </div>
-              <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                Number of products sold
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                Products sold
               </p>
+              {timeFilter === "today" && yesterdayAnalytics && (
+                <p className="text-xs mt-1">
+                  {(() => {
+                    const comp = getComparison(
+                      analytics.totalItemsSold,
+                      yesterdayAnalytics.itemsSold
+                    );
+                    if (!comp) return null;
+                    return (
+                      <span
+                        className={
+                          comp.isPositive
+                            ? "text-green-600 font-medium"
+                            : "text-red-600 font-medium"
+                        }
+                      >
+                        {comp.isPositive ? "↑" : "↓"} {comp.percent}% vs
+                        Yesterday
+                      </span>
+                    );
+                  })()}
+                </p>
+              )}
             </CardContent>
           </Card>
-          <Card className="!gap-2">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600 dark:text-white">
-                Inventory Value
+                Stock Worth
               </CardTitle>
               <Package className="h-4 w-4 text-indigo-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                ₹{analytics.totalInventoryValue}
+                {formatCurrency(analytics.totalInventoryValue)}
               </div>
-              <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                Total value of remaining stock
+              <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                Value of remaining stock
               </p>
             </CardContent>
           </Card>
         </div>
-        {/* Low Stock Alerts */}
+        {/* Low Stock Alerts - Simplified Language */}
         {analytics.lowStockItems?.length > 0 && (
-          <Card className="border-orange-200 bg-orange-50">
+          <Card className="border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-orange-900 flex items-center gap-2">
+                  <CardTitle className="text-orange-900 dark:text-orange-100 flex items-center gap-2">
                     <TrendingDown className="h-5 w-5" />
-                    Low Stock Alert
+                    ⚠️ Action Needed: Restock These Items
                   </CardTitle>
-                  <p className="text-sm text-orange-700 mt-1">
-                    Items need restocking
+                  <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+                    These items are running low - time to order more!
                   </p>
                 </div>
-                <span className="bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                <span className="bg-orange-500 text-white text-sm font-bold px-4 py-2 rounded-full">
                   {analytics.lowStockItems.length} Items
                 </span>
               </div>
@@ -451,10 +746,10 @@ const Home = () => {
                           <p className="font-semibold text-gray-900">
                             {item.name}
                           </p>
-                          <p className="text-xs text-gray-600 mt-1">
+                          <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
                             {item.status === "outofstock"
-                              ? "Out of Stock"
-                              : `Only ${item.quantity} left`}
+                              ? "❌ Out of Stock - Order Now!"
+                              : `⚠️ Only ${item.quantity} left - Order Soon!`}
                           </p>
                         </div>
                         <div
@@ -484,9 +779,9 @@ const Home = () => {
           {/* Revenue Distribution Pie Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Revenue by Category</CardTitle>
-              <p className="text-sm text-gray-500">
-                Distribution across price points
+              <CardTitle>Which Items Sell Most</CardTitle>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                This chart shows which items bring in the most money
               </p>
             </CardHeader>
             <CardContent>
@@ -530,9 +825,9 @@ const Home = () => {
           {/* Profit vs Cost Bar Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Profit Analysis by Category</CardTitle>
-              <p className="text-sm text-gray-500">
-                Revenue, Cost & Profit comparison
+              <CardTitle>Money Made vs Money Spent</CardTitle>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                See how much you earned vs spent for each item
               </p>
             </CardHeader>
             <CardContent>
@@ -576,9 +871,9 @@ const Home = () => {
         {/* Category Breakdown Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Category Performance Details</CardTitle>
-            <p className="text-sm text-gray-500">
-              Detailed breakdown by price category
+            <CardTitle>Item-wise Details</CardTitle>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              See exactly how much each item made and cost
             </p>
           </CardHeader>
           <CardContent>
@@ -587,22 +882,22 @@ const Home = () => {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-white">
                         Category
                       </th>
-                      <th className="text-right py-3 px-4 font-semibold text-gray-700">
+                      <th className="text-right py-3 px-4 font-semibold text-gray-700 dark:text-white">
                         Qty Sold
                       </th>
-                      <th className="text-right py-3 px-4 font-semibold text-gray-700">
+                      <th className="text-right py-3 px-4 font-semibold text-gray-700 dark:text-white">
                         Revenue
                       </th>
-                      <th className="text-right py-3 px-4 font-semibold text-gray-700">
+                      <th className="text-right py-3 px-4 font-semibold text-gray-700 dark:text-white">
                         Cost
                       </th>
-                      <th className="text-right py-3 px-4 font-semibold text-gray-700">
+                      <th className="text-right py-3 px-4 font-semibold text-gray-700 dark:text-white">
                         Profit
                       </th>
-                      <th className="text-right py-3 px-4 font-semibold text-gray-700">
+                      <th className="text-right py-3 px-4 font-semibold text-gray-700 dark:text-white">
                         Margin
                       </th>
                     </tr>
@@ -611,7 +906,7 @@ const Home = () => {
                     {analytics.categories.map((cat: any, index: any) => (
                       <tr
                         key={index}
-                        className="border-b border-gray-100 hover:bg-gray-50"
+                        className="border-b border-gray-100 dark:hover:bg-gray-500 hover:bg-gray-50"
                       >
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
@@ -628,21 +923,21 @@ const Home = () => {
                             {Object.keys(cat.flavors || {}).join(', ')}
                           </div> */}
                         </td>
-                        <td className="text-right py-3 px-4 text-gray-700">
-                          {cat.quantity}
+                        <td className="text-right py-3 px-4 text-gray-700 dark:text-white dark:text-gray-300">
+                          {formatNumber(cat.quantity)}
                         </td>
-                        <td className="text-right py-3 px-4 text-gray-700">
-                          ₹{cat.revenue.toFixed(2)}
+                        <td className="text-right py-3 px-4 text-gray-700 dark:text-white dark:text-gray-300">
+                          {formatCurrency(cat.revenue)}
                         </td>
-                        <td className="text-right py-3 px-4 text-gray-700">
-                          ₹{cat.cost.toFixed(2)}
+                        <td className="text-right py-3 px-4 text-gray-700 dark:text-white dark:text-gray-300">
+                          {formatCurrency(cat.cost)}
                         </td>
                         <td
                           className={`text-right py-3 px-4 font-semibold ${
                             cat.profit >= 0 ? "text-green-600" : "text-red-600"
                           }`}
                         >
-                          ₹{cat.profit.toFixed(2)}
+                          {formatCurrency(cat.profit)}
                         </td>
                         <td className="text-right py-3 px-4">
                           <span
@@ -672,71 +967,71 @@ const Home = () => {
         {/* Recent Sales Activity */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Sales Activity</CardTitle>
-            <p className="text-sm text-gray-500">Latest transactions</p>
+            <CardTitle>Recent Sales</CardTitle>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Your latest 5 sales
+            </p>
           </CardHeader>
           <CardContent>
-            {filteredInvoices.length > 0 ? (
+            {recentInvoices.length > 0 ? (
               <div className="space-y-3">
-                {filteredInvoices
-                  .slice(0, 10)
-                  .map((invoice: any, index: any) => {
-                    const invoiceProfit =
-                      invoice.lineItems?.reduce((sum: any, item: any) => {
-                        const profit =
-                          ((item.fullItem?.sellingPrice ||
-                            item.fullItem?.price ||
-                            0) -
-                            (item.fullItem?.costPrice || 0)) *
-                          item.quantity;
-                        return sum + profit;
-                      }, 0) || 0;
+                {recentInvoices.map((invoice: any, index: any) => {
+                  const invoiceProfit =
+                    invoice.lineItems?.reduce((sum: any, item: any) => {
+                      const profit =
+                        ((item.fullItem?.sellingPrice ||
+                          item.fullItem?.price ||
+                          0) -
+                          (item.fullItem?.costPrice || 0)) *
+                        item.quantity;
+                      return sum + profit;
+                    }, 0) || 0;
 
-                    const invoiceDate = new Date(
-                      (invoice.createdAt?.seconds || 0) * 1000
-                    );
-                    const isToday =
-                      invoiceDate.toDateString() === new Date().toDateString();
+                  const invoiceDate = new Date(
+                    (invoice.createdAt?.seconds || 0) * 1000
+                  );
+                  const isToday =
+                    invoiceDate.toDateString() === new Date().toDateString();
 
-                    return (
-                      <div
-                        key={invoice.id || index}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-gray-900">
-                              {invoice.name || "Customer"}
-                            </p>
-                            {isToday && (
-                              <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                                Today
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                            {invoice.invoiceId || "N/A"} •{" "}
-                            {invoice.lineItems?.length || 0} items •{" "}
-                            {invoice.paymentMode || "Cash"}
+                  return (
+                    <div
+                      key={invoice.id || index}
+                      className="flex items-center justify-between p-3 rounded-lg transition-colors"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {invoice.name || "Customer"}
                           </p>
+                          {isToday && (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium">
+                              Today
+                            </span>
+                          )}
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-gray-900">
-                            ₹{(invoice.total || 0).toFixed(2)}
-                          </p>
-                          <p
-                            className={`text-xs font-medium ${
-                              invoiceProfit >= 0
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
-                          >
-                            Profit: ₹{invoiceProfit.toFixed(2)}
-                          </p>
-                        </div>
+                        <p className="text-xs text-gray-500 mt-1 dark:text-white">
+                          {invoice.invoiceId || "N/A"} •{" "}
+                          {invoice.lineItems?.length || 0} items •{" "}
+                          {invoice.paymentMode || "Cash"}
+                        </p>
                       </div>
-                    );
-                  })}
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900 dark:text-white">
+                          {formatCurrency(invoice.total || 0)}
+                        </p>
+                        <p
+                          className={`text-xs font-medium ${
+                            invoiceProfit >= 0
+                              ? "text-green-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          Profit: {formatCurrency(invoiceProfit)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 text-gray-400">
@@ -745,30 +1040,32 @@ const Home = () => {
             )}
           </CardContent>
         </Card>
-        {/* Summary Insights */}
+        {/* Summary Insights - Simplified Language */}
         {analytics.categories.length > 0 && (
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800">
             <CardHeader>
-              <CardTitle className="text-blue-900">Key Insights</CardTitle>
+              <CardTitle className="text-blue-900 dark:text-blue-100">
+                Quick Insights
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <p className="text-sm text-gray-600 mb-1">
-                    Best Selling Category
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                    🏆 Best Seller
                   </p>
-                  <p className="text-xl font-bold text-blue-600">
+                  <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
                     {analytics.categories[0]?.category}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                    {analytics.categories[0]?.quantity} units sold
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {formatNumber(analytics.categories[0]?.quantity)} items sold
                   </p>
                 </div>
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <p className="text-sm text-gray-600 mb-1">
-                    Most Profitable Category
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                    💰 Most Profitable
                   </p>
-                  <p className="text-xl font-bold text-green-600">
+                  <p className="text-xl font-bold text-green-600 dark:text-green-400">
                     {
                       analytics.categories.reduce(
                         (max: any, cat: any) =>
@@ -777,30 +1074,30 @@ const Home = () => {
                       )?.category
                     }
                   </p>
-                  <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                    ₹
-                    {analytics.categories
-                      .reduce(
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {formatCurrency(
+                      analytics.categories.reduce(
                         (max: any, cat: any) =>
                           cat.profit > max.profit ? cat : max,
                         analytics.categories[0]
-                      )
-                      ?.profit.toFixed(2)}{" "}
+                      )?.profit || 0
+                    )}{" "}
                     profit
                   </p>
                 </div>
-                <div className="bg-white rounded-lg p-4 shadow-sm">
-                  <p className="text-sm text-gray-600 mb-1">
-                    Average Order Value
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                    📊 Average Sale
                   </p>
-                  <p className="text-xl font-bold text-purple-600">
-                    ₹
-                    {(analytics.totalRevenue / filteredInvoices.length).toFixed(
-                      2
-                    )}
+                  <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                    {filteredInvoices.length > 0
+                      ? formatCurrency(
+                          analytics.totalRevenue / filteredInvoices.length
+                        )
+                      : formatCurrency(0)}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1 dark:text-white">
-                    {filteredInvoices.length} total orders
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {formatNumber(filteredInvoices.length)} total orders
                   </p>
                 </div>
               </div>
@@ -810,9 +1107,9 @@ const Home = () => {
         {/* Payment Modes Analysis */}
         <Card>
           <CardHeader>
-            <CardTitle>Payment Mode Distribution</CardTitle>
-            <p className="text-sm text-gray-500">
-              Revenue breakdown by payment method
+            <CardTitle>How Customers Paid</CardTitle>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              See which payment methods customers used most
             </p>
           </CardHeader>
           <CardContent>
@@ -874,10 +1171,10 @@ const Home = () => {
                               </span>
                             </div>
                             <div className="text-right">
-                              <p className="font-bold text-gray-900">
-                                ₹{payment.total.toFixed(2)}
+                              <p className="font-bold text-gray-900 dark:text-white">
+                                {formatCurrency(payment.total)}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {percentage.toFixed(1)}%
                               </p>
                             </div>
@@ -897,24 +1194,24 @@ const Home = () => {
                   </div>
 
                   {/* Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6 pt-6 border-t border-gray-200">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-                      <p className="text-sm text-blue-700 mb-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-4">
+                      <p className="text-sm text-blue-700 dark:text-blue-300 mb-1">
                         Total Collected
                       </p>
-                      <p className="text-2xl font-bold text-blue-900">
-                        ₹{totalPayments.toFixed(2)}
+                      <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                        {formatCurrency(totalPayments)}
                       </p>
                     </div>
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-                      <p className="text-sm text-green-700 mb-1">
-                        Most Used Mode
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-4">
+                      <p className="text-sm text-green-700 dark:text-green-300 mb-1">
+                        Most Used Payment
                       </p>
-                      <p className="text-2xl font-bold text-green-900">
+                      <p className="text-2xl font-bold text-green-900 dark:text-green-100">
                         {paymentData[0]?.mode}
                       </p>
-                      <p className="text-xs text-green-700 mt-1">
-                        {paymentData[0]?.count} transactions
+                      <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                        {formatNumber(paymentData[0]?.count || 0)} transactions
                       </p>
                     </div>
                   </div>

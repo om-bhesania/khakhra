@@ -6,7 +6,7 @@ import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { toast } from "sonner";
 
 export default function AdminOrgMembers() {
-  const { addDocument, readRootDocuments, updateDocument } = useFirestoreCRUD();
+  const { addDocument, readRootDocuments, readDocuments, updateDocument } = useFirestoreCRUD();
   const [orgId, setOrgId] = useState("");
   const [memberUid, setMemberUid] = useState("");
   const [users, setUsers] = useState<Array<{ id: string; displayName?: string; email?: string }>>([]);
@@ -31,9 +31,92 @@ export default function AdminOrgMembers() {
         toast.error("Select a member");
         return;
       }
-      // Set user's organizationId and add to members (no extra fields required here)
+      // Set user's organizationId
       await updateDocument("users", memberUid, { organizationId: orgId } as any);
-      await addDocument(`organizations/${orgId}/members`, { uid: memberUid } as any);
+      
+      // Get or create a default "Employee" role for this org with read-only permissions
+      const { Timestamp } = await import("firebase/firestore");
+      const { auth } = await import("@/config/firebase.config");
+      const { SYSTEM_MODULES } = await import("@/types/rbac");
+      const currentUserId = auth.currentUser?.uid || "system";
+      
+      // Get all roles to find Employee role
+      const allRoles = await readDocuments<any>(`organizations/${orgId}/roles`);
+      let employeeRole = allRoles.find((r: any) => r.name === "Employee" && r.isSystem);
+      
+      let roleId: string;
+      if (!employeeRole) {
+        // Create default Employee role
+        const roleDoc = await addDocument(`organizations/${orgId}/roles`, {
+          organizationId: orgId,
+          name: "Employee",
+          description: "Default employee role with read-only access to all modules",
+          isSystem: true,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          createdBy: currentUserId,
+        });
+        roleId = (roleDoc as any)?.id;
+        
+        // Create read-only permissions for all modules
+        const readOnlyPermissions = {
+          create: false,
+          read: true,
+          update: false,
+          delete: false,
+        };
+        
+        for (const module of SYSTEM_MODULES) {
+          await addDocument(`organizations/${orgId}/permissions`, {
+            organizationId: orgId,
+            roleId: roleId,
+            moduleId: module.id,
+            permissions: readOnlyPermissions,
+            updatedBy: currentUserId,
+            updatedAt: Timestamp.now(),
+          } as any);
+        }
+      } else {
+        roleId = employeeRole.id;
+        
+        // Ensure Employee role has read-only permissions (in case it was created without them)
+        const existingPermissions = await readDocuments<any>(
+          `organizations/${orgId}/permissions`,
+          {
+            where: [{ field: "roleId", operator: "==", value: roleId }],
+          }
+        );
+        
+        // If no permissions exist, create them
+        if (existingPermissions.length === 0) {
+          const readOnlyPermissions = {
+            create: false,
+            read: true,
+            update: false,
+            delete: false,
+          };
+          
+          for (const module of SYSTEM_MODULES) {
+            await addDocument(`organizations/${orgId}/permissions`, {
+              organizationId: orgId,
+              roleId: roleId,
+              moduleId: module.id,
+              permissions: readOnlyPermissions,
+              updatedBy: currentUserId,
+              updatedAt: Timestamp.now(),
+            } as any);
+          }
+        }
+      }
+      
+      // Add member with default Employee role
+      await addDocument(`organizations/${orgId}/members`, { 
+        userId: memberUid,
+        roleId: roleId,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      } as any);
+      
       toast.success("Member added");
       setMemberUid("");
     } catch (e: any) {

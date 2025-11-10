@@ -285,6 +285,26 @@ const Settings = () => {
         limit: 10000,
       });
 
+      // Custom replacer to properly serialize Firestore Timestamps
+      const timestampReplacer = (key: string, value: any) => {
+        // Handle Firestore Timestamp objects
+        if (value && typeof value === 'object') {
+          // Check if it's a Firestore Timestamp (has toDate method or seconds/nanoseconds)
+          if (value.seconds !== undefined && value.nanoseconds !== undefined) {
+            // Already in serializable format, return as-is
+            return value;
+          }
+          // Check if it has toDate method (Firestore Timestamp)
+          if (typeof value.toDate === 'function') {
+            return {
+              seconds: Math.floor(value.toDate().getTime() / 1000),
+              nanoseconds: (value.toDate().getTime() % 1000) * 1000000,
+            };
+          }
+        }
+        return value;
+      };
+
       const backupData = {
         version: "1.0",
         timestamp: new Date().toISOString(),
@@ -303,7 +323,7 @@ const Settings = () => {
         },
       };
 
-      const backupJson = JSON.stringify(backupData, null, 2);
+      const backupJson = JSON.stringify(backupData, timestampReplacer, 2);
       const backupBlob = new Blob([backupJson], { type: "application/json" });
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -417,12 +437,40 @@ const Settings = () => {
 
         for (const item of items) {
           try {
+            // Helper function to convert timestamp objects to Firestore Timestamps
+            const convertTimestamp = (ts: any) => {
+              if (!ts) return null;
+              // If it's already a Timestamp object (from Firestore), return as-is
+              if (ts.seconds !== undefined && ts.nanoseconds !== undefined) {
+                return { seconds: ts.seconds, nanoseconds: ts.nanoseconds || 0 };
+              }
+              // If it's a date string or number, convert it
+              if (typeof ts === 'string' || typeof ts === 'number') {
+                const date = new Date(ts);
+                return { 
+                  seconds: Math.floor(date.getTime() / 1000), 
+                  nanoseconds: (date.getTime() % 1000) * 1000000 
+                };
+              }
+              return null;
+            };
+
             if (restoreMode === "merge") {
               // Merge mode - add only if not exists
               const existing = await readDocById(collectionName, item.id);
               if (!existing) {
                 // Remove id from item before adding (Firestore will create new one)
+                // But preserve createdAt and updatedAt timestamps
                 const { id, ...itemData } = item;
+                
+                // Convert timestamps if they exist
+                if (itemData.createdAt) {
+                  itemData.createdAt = convertTimestamp(itemData.createdAt);
+                }
+                if (itemData.updatedAt) {
+                  itemData.updatedAt = convertTimestamp(itemData.updatedAt);
+                }
+                
                 await addDocument(collectionName, itemData);
                 restoredCount++;
               } else {
@@ -432,11 +480,31 @@ const Settings = () => {
               // Replace mode - update if exists, add if not
               const existing = await readDocById(collectionName, item.id);
               if (existing) {
-                const { id, createdAt, updatedAt, ...itemData } = item;
+                // Preserve createdAt and updatedAt from backup when updating
+                const { id, ...itemData } = item;
+                
+                // Convert timestamps if they exist
+                if (itemData.createdAt) {
+                  itemData.createdAt = convertTimestamp(itemData.createdAt);
+                }
+                if (itemData.updatedAt) {
+                  itemData.updatedAt = convertTimestamp(itemData.updatedAt);
+                }
+                
                 await updateDocument(collectionName, item.id, itemData);
                 restoredCount++;
               } else {
+                // Remove id but preserve createdAt and updatedAt
                 const { id, ...itemData } = item;
+                
+                // Convert timestamps if they exist
+                if (itemData.createdAt) {
+                  itemData.createdAt = convertTimestamp(itemData.createdAt);
+                }
+                if (itemData.updatedAt) {
+                  itemData.updatedAt = convertTimestamp(itemData.updatedAt);
+                }
+                
                 await addDocument(collectionName, itemData);
                 restoredCount++;
               }

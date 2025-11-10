@@ -72,7 +72,6 @@ function CustomerForm() {
     },
   });
 
-  
   return (
     <div className="w-full space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
@@ -118,7 +117,7 @@ function CustomerForm() {
               onChange: ({ value }) =>
                 !value.trim()
                   ? "Number is required"
-                  : /\d{7,}/.test(value)
+                  : /\d{10,}/.test(value)
                   ? undefined
                   : "Enter a valid number",
             }}
@@ -132,6 +131,12 @@ function CustomerForm() {
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
+                  inputMode="tel"
+                  maxLength={10}
+                  minLength={10}
+                  pattern="[0-9]*"
+                  title="Please enter a valid number"
+                  required
                   placeholder="Contact number"
                 />
                 {field.state.meta.errors[0] && (
@@ -173,20 +178,6 @@ function CustomerForm() {
                       <div className="text-zinc-500">Number</div>
                       <div className="font-medium text-zinc-900 dark:text-zinc-100 min-h-5">
                         {values.number?.trim() || "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-zinc-500">Payment Mode</div>
-                      <div className="font-medium text-zinc-900 dark:text-zinc-100 min-h-5">
-                        {values.paymentMode?.trim() || "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-zinc-500">Payment Amount</div>
-                      <div className="font-medium text-zinc-900 dark:text-zinc-100 min-h-5">
-                        {values.paymentAmount
-                          ? Number(values.paymentAmount).toLocaleString()
-                          : "—"}
                       </div>
                     </div>
                   </div>

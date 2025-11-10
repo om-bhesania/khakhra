@@ -54,14 +54,12 @@ function CustomerHistory({ id }: HistoryProps) {
   const { id: idFromParam } = useParams();
 
   // Use id here
-  console.log(idFromParam);
 
   const getBillHistory = async () => {
     const res: any = await readDocuments("bills");
     const customerBills = res.filter(
       (bill: Bill) => bill.exisitingCustomerData?.id === idFromParam || id
     );
-    console.log("customerBills", customerBills);
     setAllBills(customerBills);
   };
 
@@ -90,7 +88,6 @@ function CustomerHistory({ id }: HistoryProps) {
       const dateB = getDate(b.createdAt).getTime();
       return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
     });
-    console.log("bills", bills);
     return bills;
   }, [allBills, dateFilter, sortOrder]);
 

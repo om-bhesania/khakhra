@@ -39,7 +39,6 @@ function CustomerTable() {
   useEffect(() => {
     if (error) toast.error(error);
   }, [error]);
-console.log("data", data);
   const csvData = data.map((item) => ({
     id: item.id,
     Name: item.name,

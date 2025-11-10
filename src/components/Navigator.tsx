@@ -166,9 +166,6 @@ function Navigator() {
 
   async function test() {
     const userProfileData = await getCurrentUserProfile();
-    console.log("userProfile", userProfileData); // "admin", "user", etc.
-    console.log("=====>", userProfileData?.role); // "admin", "user", etc.
-    console.log("=====>", userProfileData?.displayName); // Custom fields
     setUserProfile(userProfileData);
   }
   useEffect(() => {

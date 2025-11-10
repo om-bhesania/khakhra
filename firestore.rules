@@ -30,28 +30,76 @@ service cloud.firestore {
     // Organizations
     match /organizations/{orgId} {
       allow read: if request.auth != null;
-      // Only admin can create/update/delete organizations and manage membership
+      // Only admin can create/update/delete organizations
       allow write: if isAdmin();
-
-      // Members subcollection: admin writes; reads open to authenticated
-      match /members/{memberUid} {
-        allow read: if request.auth != null;
-        allow write: if isAdmin();
+      
+      // Helper function to check if user is org member
+      function isOrgMember() {
+        return request.auth != null && 
+          exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+      }
+      
+      // Helper function to check if user is org owner
+      function isOrgOwner() {
+        return request.auth != null && 
+          get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerUid == request.auth.uid;
       }
 
-      // Org-scoped user data: organizations/{orgId}/users/{uid}/{coll}/{doc}
-      match /users/{uid}/{coll}/{docId} {
-        // Read: Only members of this org can read
-        allow read: if request.auth != null && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
-        // Write: Any org member can write their org data
-        allow write: if request.auth != null && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+      // Members subcollection
+      match /members/{memberUid} {
+        allow read: if request.auth != null && isOrgMember();
+        // Admin can write, owners can manage members
+        allow write: if isAdmin() || isOrgOwner();
+      }
+      
+      // Org-scoped roles
+      match /roles/{roleId} {
+        allow read: if request.auth != null && isOrgMember();
+        // Only owners can manage roles
+        allow write: if isAdmin() || isOrgOwner();
+      }
+      
+      // Org-scoped permissions
+      match /permissions/{permissionId} {
+        allow read: if request.auth != null && isOrgMember();
+        // Only owners can manage permissions
+        allow write: if isAdmin() || isOrgOwner();
+      }
+
+      // Org-shared data collections (e.g., inventory, billing, customers)
+      // All collections under organizations/{orgId}/{collection}
+      match /{collection}/{document=**} {
+        // Read: Only org members can read
+        allow read: if request.auth != null && isOrgMember();
+        // Write: Only org members can write (permissions checked in app)
+        allow write: if request.auth != null && isOrgMember();
       }
     }
 
-    // Employees collection: readable by authenticated users; writable by admin only
+    // Employees collection: readable by authenticated users
+    // Writable by admin or organization owners (if employee belongs to their org)
     match /employees/{empId} {
       allow read: if request.auth != null;
-      allow write: if isAdmin();
+      
+      // Helper function to check if user is owner of employee's organization
+      function isEmployeeOrgOwner() {
+        let employeeData = get(/databases/$(database)/documents/employees/$(empId)).data;
+        if (!employeeData.organizationId) return false;
+        let orgData = get(/databases/$(database)/documents/organizations/$(employeeData.organizationId)).data;
+        return request.auth != null && orgData.ownerUid == request.auth.uid;
+      }
+      
+      // Allow write if admin or organization owner
+      allow write: if isAdmin() || isEmployeeOrgOwner();
+      
+      // Allow create if admin or if user is organization owner
+      // For create, we need to check the incoming data
+      allow create: if isAdmin() || (
+        request.auth != null &&
+        request.resource.data.organizationId != null &&
+        request.resource.data.organizationId is string &&
+        get(/databases/$(database)/documents/organizations/$(request.resource.data.organizationId)).data.ownerUid == request.auth.uid
+      );
     }
 
     // Other application collections - default: authenticated read/write

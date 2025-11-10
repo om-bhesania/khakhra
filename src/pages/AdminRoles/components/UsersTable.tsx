@@ -80,7 +80,6 @@ export default function UsersTable() {
         where: [{ field: "name", operator: "==", value: normalized }],
         limit: 1,
       } as any);
-      console.log("roleDocs", roleDocs);
       if (roleDocs.length) {
         perms = roleDocs[0]?.module || {};
       } else {

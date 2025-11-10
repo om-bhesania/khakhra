@@ -17,17 +17,63 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
+import { useCallback } from "react";
 
 export default function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingOrgName, setCheckingOrgName] = useState(false);
 
   const navigate = useNavigate();
+  const { readRootDocuments } = useFirestoreCRUD();
+
+  // Generate slug from organization name
+  const generateSlug = (name: string): string => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "") // Remove special characters
+      .replace(/\s+/g, "-") // Replace spaces with hyphens
+      .replace(/-+/g, "-") // Replace multiple hyphens with single
+      .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+  };
+
+  // Check if organization name is unique
+  const checkOrganizationNameUnique = useCallback(
+    async (name: string): Promise<boolean> => {
+      if (!name.trim()) return true;
+
+      try {
+        const slug = generateSlug(name);
+        const orgs = await readRootDocuments<any>("organizations", {
+          limit: 1000,
+        } as any);
+
+        // Check both by name (case-insensitive) and slug
+        const isUnique = !orgs.some((org: any) => {
+          const orgSlug = generateSlug(org.name || "");
+          return (
+            org.name?.toLowerCase().trim() === name.toLowerCase().trim() ||
+            org.slug === slug ||
+            orgSlug === slug
+          );
+        });
+
+        return isUnique;
+      } catch (error) {
+        console.error("Error checking org name:", error);
+        return false;
+      }
+    },
+    [readRootDocuments]
+  );
 
   const validatePassword = () => {
     if (password.length < 6) {
@@ -66,10 +112,29 @@ export default function RegisterPage() {
       return;
     }
 
+    // If organization name provided, check uniqueness
+    if (organizationName.trim()) {
+      setCheckingOrgName(true);
+      const isUnique = await checkOrganizationNameUnique(organizationName.trim());
+      setCheckingOrgName(false);
+
+      if (!isUnique) {
+        setError(
+          "Organization name already exists. Please choose a different name."
+        );
+        return;
+      }
+    }
+
     try {
       setError("");
       setLoading(true);
-      await signUpWithEmail(email, password, displayName);
+      await signUpWithEmail(
+        email,
+        password,
+        displayName,
+        organizationName.trim() || undefined
+      );
       navigate("/", { replace: true });
     } catch (err: any) {
       setError(err.message);
@@ -165,7 +230,39 @@ export default function RegisterPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <div className="space-y-2">
+              <Label htmlFor="organizationName">
+                Organization Name <span className="text-muted-foreground">(Optional)</span>
+              </Label>
+              <Input
+                id="organizationName"
+                type="text"
+                placeholder="My Company"
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+                disabled={loading || checkingOrgName}
+              />
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                <span>
+                  {organizationName.trim()
+                    ? "Creating an organization will make you the owner. You can add employees later."
+                    : "Leave blank if you're joining an existing organization or don't need one."}
+                </span>
+              </div>
+              {checkingOrgName && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Checking organization name...
+                </p>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || checkingOrgName}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create Account
             </Button>

@@ -13,8 +13,11 @@ import { AdminRolesView } from "@/pages/AdminRoles/AdminRoles";
 import RBACSync from "@/pages/AdminRoles/RBACSync";
 import AdminOrgs from "@/pages/AdminOrgs/AdminOrgs";
 import AdminOrgMembers from "@/pages/AdminOrgs/AdminOrgMembers";
+import AdminUsers from "@/pages/AdminUsers/AdminUsers";
 import AuditLogs from "@/pages/Roles/AuditLogs";
 import RoleManagement from "@/pages/Roles/RoleManagement";
+import OrgRoleManagement from "@/pages/Roles/OrgRoleManagement";
+import OrgMemberManagement from "@/pages/Roles/OrgMemberManagement";
 import {
   FileSpreadsheet,
   Home as HomeIcon,
@@ -188,6 +191,7 @@ export const appRoutes: AppRoute[] = [
     path: "/employees",
     type: "private",
     icon: Users,
+    hideSidebar: true,
     submenu: [
       {
         name: "View Employees",
@@ -253,6 +257,14 @@ export const appRoutes: AppRoute[] = [
     hideSidebar: true,
   },
   {
+    name: "Users",
+    path: "/admin/users",
+    type: "private",
+    icon: Users,
+    element: AdminUsers,
+    hideSidebar: true,
+  },
+  {
     name: "Role Management",
     path: "/roles",
     type: "private",
@@ -264,6 +276,18 @@ export const appRoutes: AppRoute[] = [
         path: "/roles/manage",
         icon: Users,
         element: RoleManagement,
+      },
+      {
+        name: "Org Roles",
+        path: "/roles/org",
+        icon: Users,
+        element: OrgRoleManagement,
+      },
+      {
+        name: "Org Members",
+        path: "/roles/org/members",
+        icon: Users,
+        element: OrgMemberManagement,
       },
       {
         name: "Audit Logs",

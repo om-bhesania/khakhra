@@ -31,7 +31,6 @@ function InventoryForm() {
       if (typeof unsub === "function") unsub();
     };
   }, [readDocuments, subscribeToCollection]);
-  console.log("inventory", inventory);
   const form = useForm({
     defaultValues: {
       name: "",
