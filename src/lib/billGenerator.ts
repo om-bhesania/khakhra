@@ -52,17 +52,17 @@ export const generateBillHTML = (data: BillData): string => {
 
       return `
         <tr>
-          <td colspan="2" style="padding: 3px 0 1px 0; font-size: 12px; font-weight: 600;">${
+          <td colspan="2" style="padding: 3px 0 1px 0; font-size: 16px; font-weight: 600;">${
             item.itemName
           }</td>
         </tr>
         <tr style="border-bottom: 1px dashed #999;">
-          <td style="padding: 0 0 4px 0; font-size: 11px;">
+          <td style="padding: 0 0 4px 0; font-size: 15px;">
             ${item.quantity} x ₹${item.rate.toFixed(2)}${
         itemDiscount > 0 ? ` (-₹${itemDiscount.toFixed(2)})` : ""
       }
           </td>
-          <td style="padding: 0 0 4px 0; text-align: right; font-size: 12px; font-weight: 600;">
+          <td style="padding: 0 0 4px 0; text-align: right; font-size: 16px; font-weight: 600;">
             ₹${itemFinalPrice.toFixed(2)}
           </td>
         </tr>
@@ -125,19 +125,19 @@ export const generateBillHTML = (data: BillData): string => {
           border-bottom: 1px dashed #000;
         }
         .company-name {
-          font-size: 18px;
+          font-size: 22px;
           font-weight: bold;
           margin-bottom: 3px;
           letter-spacing: 0.5px;
         }
         .company-info {
-          font-size: 10px;
+          font-size: 14px;
           line-height: 1.3;
           color: #000;
         }
         .receipt-info {
           margin: 6px 0;
-          font-size: 11px;
+          font-size: 15px;
           border-bottom: 1px dashed #000;
           padding-bottom: 6px;
           line-height: 1.4;
@@ -145,7 +145,7 @@ export const generateBillHTML = (data: BillData): string => {
         .receipt-number {
           font-weight: bold;
           margin-bottom: 2px;
-          font-size: 11px;
+          font-size: 15px;
         }
         .info-line {
           margin: 1px 0;
@@ -157,7 +157,7 @@ export const generateBillHTML = (data: BillData): string => {
         }
         .items-header {
           padding: 4px 0;
-          font-size: 11px;
+          font-size: 15px;
           font-weight: bold;
           text-transform: uppercase;
           border-bottom: 1px solid #000;
@@ -172,13 +172,13 @@ export const generateBillHTML = (data: BillData): string => {
           display: flex;
           justify-content: space-between;
           padding: 2px 0;
-          font-size: 11px;
+          font-size: 15px;
         }
         .discount-row {
           display: flex;
           justify-content: space-between;
           padding: 3px 0;
-          font-size: 11px;
+          font-size: 15px;
           border-top: 1px dashed #000;
           margin-top: 4px;
           padding-top: 6px;
@@ -187,7 +187,7 @@ export const generateBillHTML = (data: BillData): string => {
           display: flex;
           justify-content: space-between;
           padding: 8px 0;
-          font-size: 16px;
+          font-size: 20px;
           font-weight: bold;
           border-top: 2px solid #000;
           border-bottom: 2px solid #000;
@@ -195,7 +195,7 @@ export const generateBillHTML = (data: BillData): string => {
         }
         .payment-info {
           margin-top: 6px;
-          font-size: 11px;
+          font-size: 15px;
           padding-top: 6px;
         }
         .payment-row {
@@ -209,7 +209,7 @@ export const generateBillHTML = (data: BillData): string => {
           margin-top: 8px;
           padding-top: 6px;
           border-top: 1px dashed #000;
-          font-size: 10px;
+          font-size: 14px;
           line-height: 1.4;
         }
       </style>

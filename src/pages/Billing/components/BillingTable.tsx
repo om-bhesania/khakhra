@@ -5,11 +5,14 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { billingColumns } from "../Columns";
 import { genCsvFileName } from "@/lib/utils";
+import BillViewModal from "./BillViewModal";
 
 const BillingTable = () => {
   const [data, setData] = useState<any>([]);
   const { readDocuments } = useFirestoreCRUD();
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedBill, setSelectedBill] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const auth = getAuth();
 
   useEffect(() => {
@@ -63,15 +66,28 @@ const BillingTable = () => {
     "updatedAt", 
   ];
 
+  const handleRowClick = (row: any) => {
+    setSelectedBill(row);
+    setIsModalOpen(true);
+  };
+
   return (
-    <DataTable
-      columns={billingColumns}
-      data={data}
-      loading={isLoading}
-      csvData={csvData}
-      csvHeader={csvHeader}
-      csvFileName={genCsvFileName("bills_data")}
-    />
+    <>
+      <DataTable
+        columns={billingColumns}
+        data={data}
+        loading={isLoading}
+        csvData={csvData}
+        csvHeader={csvHeader}
+        csvFileName={genCsvFileName("bills_data")}
+        onRowClick={handleRowClick}
+      />
+      <BillViewModal
+        bill={selectedBill}
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+      />
+    </>
   );
 };
 

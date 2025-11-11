@@ -36,6 +36,7 @@ interface DataTableProps<TData, TValue> {
   csvData?: any;
   csvHeader?: any;
   csvFileName?: string;
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -45,6 +46,7 @@ export function DataTable<TData, TValue>({
   csvData,
   csvHeader,
   csvFileName = "data_export.csv",
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   // Enhance columns: auto-format Created At columns and Timestamp-like values
   const enhancedColumns = React.useMemo(() => {
@@ -297,6 +299,8 @@ export function DataTable<TData, TValue>({
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
+                    onClick={() => onRowClick?.(row.original)}
+                    className={onRowClick ? "cursor-pointer" : ""}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id} className="text-center">

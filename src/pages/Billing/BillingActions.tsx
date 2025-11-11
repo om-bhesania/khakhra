@@ -8,9 +8,79 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
-import { Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Pencil, Trash2, Printer } from "lucide-react";
+import { useState, useMemo } from "react";
 import Swal from "sweetalert2";
+import { generateBillHTML, printBill, type BillData } from "@/lib/billGenerator";
+import { COMPANY_CONFIG } from "@/lib/utils";
+
+// Helper function to convert bill data to BillData format
+const transformBillToBillData = (bill: any): BillData => {
+  // Handle date conversion from Firestore timestamp
+  let dateString = "";
+  if (bill.createdAt) {
+    if (typeof bill.createdAt.toDate === "function") {
+      dateString = bill.createdAt.toDate().toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    } else if (bill.createdAt.seconds) {
+      const date = new Date(bill.createdAt.seconds * 1000);
+      dateString = date.toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    } else {
+      dateString = new Date().toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    }
+  } else {
+    dateString = new Date().toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }
+
+  return {
+    companyName: COMPANY_CONFIG.name,
+    companyAddress: COMPANY_CONFIG.address,
+    companyCity: COMPANY_CONFIG.city,
+    companyPhone: COMPANY_CONFIG.phone,
+    receiptNumber: bill.invoiceId || bill.id || "N/A",
+    date: dateString,
+    userName: bill.name || "Guest",
+    items: (bill.lineItems || []).map((item: any) => ({
+      itemName: item.itemName || item.name || "Unknown Item",
+      quantity: Number(item.quantity) || 0,
+      rate: Number(item.rate) || 0,
+      discount: Number(item.discount) || 0,
+    })),
+    cartDiscount: 0,
+    cgst: bill.gstEnabled ? (bill.cgst || 0) : 0,
+    sgst: bill.gstEnabled ? (bill.sgst || 0) : 0,
+    subtotal: bill.subtotal || 0,
+    total: bill.total || 0,
+    paymentMode: bill.paymentMode || "Cash",
+  };
+};
 
 export const BillActions = ({ bill }: { bill: any }) => {
   const { deleteDocument, updateDocument, refreshData } = useFirestoreCRUD();
@@ -57,6 +127,20 @@ export const BillActions = ({ bill }: { bill: any }) => {
       Swal.fire("Error", err.message || "Failed to update bill", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const billData = useMemo(() => transformBillToBillData(bill), [bill]);
+  const billHtml = useMemo(() => generateBillHTML(billData), [billData]);
+
+  const handlePrint = (e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    try {
+      printBill(billHtml);
+    } catch (error: any) {
+      Swal.fire("Error", error.message || "Failed to print bill", "error");
     }
   };
 
@@ -134,34 +218,32 @@ export const BillActions = ({ bill }: { bill: any }) => {
   //   }
   // };
 
+  const handleActionClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row click when clicking action buttons
+  };
+
   return (
-    <div className="flex items-center justify-center gap-2">
+    <div className="flex items-center justify-center gap-2" onClick={handleActionClick}>
       {/* 🖨️ Print */}
-      {/* <Button
+      <Button
         variant="ghost"
         size="icon"
-        onClick={handlePrint}
+        onClick={(e) => handlePrint(e)}
         disabled={loading}
         title="Print Bill"
       >
         <Printer className="h-4 w-4" />
-      </Button> */}
-
-      {/* 📥 Download */}
-      {/* <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleDownload}
-        disabled={loading}
-        title="Download Bill"
-      >
-        <Download className="h-4 w-4" />
-      </Button> */}
+      </Button>
 
       {/* ✏️ Edit */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" size="icon" title="Edit Bill">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            title="Edit Bill"
+            onClick={handleActionClick}
+          >
             <Pencil className="h-4 w-4" />
           </Button>
         </DialogTrigger>
@@ -215,7 +297,10 @@ export const BillActions = ({ bill }: { bill: any }) => {
       <Button
         variant="ghost"
         size="icon"
-        onClick={handleDelete}
+        onClick={(e) => {
+          handleActionClick(e);
+          handleDelete();
+        }}
         disabled={loading}
         title="Delete Bill"
       >
