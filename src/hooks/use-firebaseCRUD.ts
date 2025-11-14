@@ -22,6 +22,7 @@ import {
 } from "firebase/firestore";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { db } from "../config/firebase.config";
+import { logCrudUsage } from "@/lib/crudUsageTracker";
 
 // Base document type with Firebase metadata
 export interface FirestoreDocument {
@@ -267,6 +268,12 @@ export function useFirestoreCRUD() {
         cache.current.set(`${collPath}_${docRef.id}`, newDoc);
         cache.current.invalidatePattern(collPath);
 
+        // Log CRUD usage
+        logCrudUsage("CREATE", collectionName, {
+          documentId: docRef.id,
+          collectionPath: collPath,
+        });
+
         setLoading(false);
         return newDoc;
       } catch (err) {
@@ -423,6 +430,14 @@ export function useFirestoreCRUD() {
 
         // Update in-memory cache (for instant UI updates)
         cache.current.set(cacheKey, documents);
+
+        // Log CRUD usage (only for non-cached reads to avoid logging every cache hit)
+        if (!fromCache) {
+          logCrudUsage("READ", collectionName, {
+            collectionPath: collPath,
+            documentCount: documents.length,
+          });
+        }
         
         setLoading(false);
         return documents;
@@ -615,6 +630,12 @@ export function useFirestoreCRUD() {
         cache.current.invalidate(`${collPath}_${id}`);
         cache.current.invalidatePattern(collPath);
 
+        // Log CRUD usage
+        logCrudUsage("UPDATE", collectionName, {
+          documentId: id,
+          collectionPath: collPath,
+        });
+
         setLoading(false);
         return true;
       } catch (err) {
@@ -651,6 +672,12 @@ export function useFirestoreCRUD() {
         // Invalidate cache
         cache.current.invalidate(`${collPath}_${id}`);
         cache.current.invalidatePattern(collPath);
+
+        // Log CRUD usage
+        logCrudUsage("DELETE", collectionName, {
+          documentId: id,
+          collectionPath: collPath,
+        });
 
         setLoading(false);
         return true;
@@ -696,6 +723,13 @@ export function useFirestoreCRUD() {
           cache.current.invalidate(`${collPath}_${id}`);
         });
         cache.current.invalidatePattern(collPath);
+
+        // Log CRUD usage for batch delete
+        logCrudUsage("DELETE", collectionName, {
+          collectionPath: collPath,
+          documentCount: ids.length,
+          batchOperation: true,
+        });
 
         setLoading(false);
         return true;

@@ -18,6 +18,7 @@ import AuditLogs from "@/pages/Roles/AuditLogs";
 import RoleManagement from "@/pages/Roles/RoleManagement";
 import OrgRoleManagement from "@/pages/Roles/OrgRoleManagement";
 import OrgMemberManagement from "@/pages/Roles/OrgMemberManagement";
+import FirebaseUsageStats from "@/pages/FirebaseUsageStats/FirebaseUsageStats";
 import {
   FileSpreadsheet,
   Home as HomeIcon,
@@ -30,6 +31,7 @@ import {
   UserPlus,
   UserRoundSearch,
   Users,
+  Database,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import Home from "./../pages/Home";
@@ -303,6 +305,14 @@ export const appRoutes: AppRoute[] = [
     type: "private",
     icon: Users,
     element: NotFound,
+    hideSidebar: true,
+  },
+  {
+    name: "Firebase Usage Stats",
+    path: "/admin/firebase-usage-stats",
+    type: "private",
+    icon: Database,
+    element: FirebaseUsageStats,
     hideSidebar: true,
   },
 ];

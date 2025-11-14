@@ -34,14 +34,44 @@ function InventoryForm() {
       flavour: "",
       minStockAlertLevel: undefined as number | undefined,
     },
-    onSubmit: async ({ value }) => {
+    onSubmit: async ({ value }:any) => {
+      // Validate all required fields before submission
+      if (!value.name || value.name.trim().length === 0) {
+        toast.error("Please enter a name");
+        return;
+      }
+      
+      const price = Number(value.price);
+      if (isNaN(price) || price <= 0) {
+        toast.error("Please enter a valid price greater than 0");
+        return;
+      }
+      
+      const quantity = Number(value.quantity);
+      if (isNaN(quantity) || quantity < 0) {
+        toast.error("Please enter a valid quantity (0 or greater)");
+        return;
+      }
+      
+      const costPrice = Number(value.costPrice);
+      if (isNaN(costPrice) || costPrice <= 0) {
+        toast.error("Please enter a valid cost price greater than 0");
+        return;
+      }
+      
+      const sellingPrice = Number(value.sellingPrice);
+      if (isNaN(sellingPrice) || sellingPrice <= 0) {
+        toast.error("Please enter a valid selling price greater than 0");
+        return;
+      }
+
       try {
         const payload: Record<string, any> = {
           name: value.name.trim(),
-          price: Number(value.price) || 0,
-          quantity: Number(value.quantity) || 0,
-          costPrice: Number(value.costPrice) || 0,
-          sellingPrice: Number(value.sellingPrice) || 0,
+          price: price,
+          quantity: quantity,
+          costPrice: costPrice,
+          sellingPrice: sellingPrice,
         };
 
         const trimmedFlavour = value.flavour?.trim();
@@ -58,7 +88,6 @@ function InventoryForm() {
         }
 
         await addDocument("inventory", payload);
-        `                                                                                                                               `;
         toast.success("Inventory item saved");
         form.reset();
       } catch (err: any) {
@@ -77,25 +106,38 @@ function InventoryForm() {
             form.handleSubmit();
           }}
         >
-          {/* Price */}
+          {/* Name */}
           <form.Field
             name="name"
             validators={{
-              onChange: ({ value }) =>
-                value.trim().length > 0 ? undefined : "Enter a valid name",
+              onChange: ({ value }:any) => {
+                if (!value || value.trim().length === 0) {
+                  return "Name is required";
+                }
+                return undefined;
+              },
+              onBlur: ({ value }:any) => {
+                if (!value || value.trim().length === 0) {
+                  return "Name is required";
+                }
+                return undefined;
+              },
             }}
           >
             {(field) => (
               <div className="space-y-1">
                 <label className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Name
+                  Name <span className="text-rose-600">*</span>
                 </label>
                 <Input
                   value={String(field.state.value ?? "")}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
                   inputMode="text"
-                  placeholder="name"
+                  placeholder="Enter item name"
+                  className={
+                    field.state.meta.errors[0] ? "border-rose-500" : ""
+                  }
                 />
                 {field.state.meta.errors[0] && (
                   <p className="text-xs text-rose-600">
@@ -110,21 +152,49 @@ function InventoryForm() {
           <form.Field
             name="price"
             validators={{
-              onChange: ({ value }) =>
-                Number(value) > 0 ? undefined : "Enter a valid price",
+              onChange: ({ value }:any) => {
+                if (value === undefined || value === null || value === "") {
+                  return "Price is required";
+                }
+                const numValue = Number(value);
+                if (isNaN(numValue) || numValue <= 0) {
+                  return "Price must be greater than 0";
+                }
+                return undefined;
+              },
+              onBlur: ({ value }:any) => {
+                if (value === undefined || value === null || value === "") {
+                  return "Price is required";
+                }
+                const numValue = Number(value);
+                if (isNaN(numValue) || numValue <= 0) {
+                  return "Price must be greater than 0";
+                }
+                return undefined;
+              },
             }}
           >
             {(field) => (
               <div className="space-y-1">
                 <label className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Category
+                  Price <span className="text-rose-600">*</span>
                 </label>
                 <Input
                   value={String(field.state.value ?? "")}
-                  onChange={(e) => field.handleChange(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val =
+                      e.target.value === "" ? "" : Number(e.target.value);
+                    field.handleChange(val as any);
+                  }}
                   onBlur={field.handleBlur}
                   inputMode="decimal"
+                  type="number"
+                  min="0"
+                  step="0.01"
                   placeholder="0.00"
+                  className={
+                    field.state.meta.errors[0] ? "border-rose-500" : ""
+                  }
                   contentLeft={<IndianRupee className="h-3.5 w-3.5" />}
                 />
                 {field.state.meta.errors[0] && (
@@ -140,21 +210,48 @@ function InventoryForm() {
           <form.Field
             name="quantity"
             validators={{
-              onChange: ({ value }) =>
-                Number(value) >= 0 ? undefined : "Enter a valid quantity",
+              onChange: ({ value }:any) => {
+                if (value === undefined || value === null || value === "") {
+                  return "Quantity is required";
+                }
+                const numValue = Number(value);
+                if (isNaN(numValue) || numValue < 0) {
+                  return "Quantity must be 0 or greater";
+                }
+                return undefined;
+              },
+              onBlur: ({ value }:any) => {
+                if (value === undefined || value === null || value === "") {
+                  return "Quantity is required";
+                }
+                const numValue = Number(value);
+                if (isNaN(numValue) || numValue < 0) {
+                  return "Quantity must be 0 or greater";
+                }
+                return undefined;
+              },
             }}
           >
             {(field) => (
               <div className="space-y-1">
                 <label className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Quantity
+                  Quantity <span className="text-rose-600">*</span>
                 </label>
                 <Input
                   value={String(field.state.value ?? "")}
-                  onChange={(e) => field.handleChange(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val =
+                      e.target.value === "" ? "" : Number(e.target.value);
+                    field.handleChange(val as any);
+                  }}
                   onBlur={field.handleBlur}
                   inputMode="numeric"
+                  type="number"
+                  min="0"
                   placeholder="0"
+                  className={
+                    field.state.meta.errors[0] ? "border-rose-500" : ""
+                  }
                 />
                 {field.state.meta.errors[0] && (
                   <p className="text-xs text-rose-600">
@@ -169,21 +266,59 @@ function InventoryForm() {
           <form.Field
             name="costPrice"
             validators={{
-              onChange: ({ value }) =>
-                Number(value) >= 0 ? undefined : "Enter a valid cost price",
+              onChange: ({ value }:any) => {
+                if (
+                  value === undefined ||
+                  value === null ||
+                  value === "" ||
+                  value === 0
+                ) {
+                  return "Cost price is required";
+                }
+                const numValue = Number(value);
+                if (isNaN(numValue) || numValue <= 0) {
+                  return "Cost price must be greater than 0";
+                }
+                return undefined;
+              },
+              onBlur: ({ value }:any) => {
+                if (
+                  value === undefined ||
+                  value === null ||
+                  value === "" ||
+                  value === 0
+                ) {
+                  return "Cost price is required";
+                }
+                const numValue = Number(value);
+                if (isNaN(numValue) || numValue <= 0) {
+                  return "Cost price must be greater than 0";
+                }
+                return undefined;
+              },
             }}
           >
             {(field) => (
               <div className="space-y-1">
                 <label className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Cost Price
+                  Cost Price <span className="text-rose-600">*</span>
                 </label>
                 <Input
                   value={String(field.state.value ?? "")}
-                  onChange={(e) => field.handleChange(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val =
+                      e.target.value === "" ? "" : Number(e.target.value);
+                    field.handleChange(val as any);
+                  }}
                   onBlur={field.handleBlur}
                   inputMode="decimal"
+                  type="number"
+                  min="0"
+                  step="0.01"
                   placeholder="0.00"
+                  className={
+                    field.state.meta.errors[0] ? "border-rose-500" : ""
+                  }
                   contentLeft={<IndianRupee className="h-3.5 w-3.5" />}
                 />
                 {field.state.meta.errors[0] && (
@@ -199,21 +334,59 @@ function InventoryForm() {
           <form.Field
             name="sellingPrice"
             validators={{
-              onChange: ({ value }) =>
-                Number(value) >= 0 ? undefined : "Enter a valid selling price",
+              onChange: ({ value }:any) => {
+                if (
+                  value === undefined ||
+                  value === null ||
+                  value === "" ||
+                  value === 0
+                ) {
+                  return "Selling price is required";
+                }
+                const numValue = Number(value);
+                if (isNaN(numValue) || numValue <= 0) {
+                  return "Selling price must be greater than 0";
+                }
+                return undefined;
+              },
+              onBlur: ({ value }:any) => {
+                if (
+                  value === undefined ||
+                  value === null ||
+                  value === "" ||
+                  value === 0
+                ) {
+                  return "Selling price is required";
+                }
+                const numValue = Number(value);
+                if (isNaN(numValue) || numValue <= 0) {
+                  return "Selling price must be greater than 0";
+                }
+                return undefined;
+              },
             }}
           >
             {(field) => (
               <div className="space-y-1">
                 <label className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Selling Price
+                  Selling Price <span className="text-rose-600">*</span>
                 </label>
                 <Input
                   value={String(field.state.value ?? "")}
-                  onChange={(e) => field.handleChange(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val =
+                      e.target.value === "" ? "" : Number(e.target.value);
+                    field.handleChange(val as any);
+                  }}
                   onBlur={field.handleBlur}
                   inputMode="decimal"
+                  type="number"
+                  min="0"
+                  step="0.01"
                   placeholder="0.00"
+                  className={
+                    field.state.meta.errors[0] ? "border-rose-500" : ""
+                  }
                   contentLeft={<IndianRupee className="h-3.5 w-3.5" />}
                 />
                 {field.state.meta.errors[0] && (

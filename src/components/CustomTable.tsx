@@ -65,19 +65,54 @@ export function DataTable<TData, TValue>({
       enableSorting: false,
     };
 
+    // Helper function to extract timestamp value for sorting
+    const getTimestampValue = (value: any): number => {
+      if (!value) return 0;
+      if (typeof value.toDate === "function") {
+        return value.toDate().getTime();
+      }
+      if (value.seconds) {
+        return value.seconds * 1000;
+      }
+      if (value instanceof Date) {
+        return value.getTime();
+      }
+      if (typeof value === "number") {
+        return value;
+      }
+      return 0;
+    };
+
     const mapped = (columns as unknown as Array<any>).map((col) => {
-      if (col?.cell) return col; // respect custom cell
       const headerText =
         typeof col?.header === "string" ? col.header.toLowerCase() : "";
       const idText = String(col?.id ?? col?.accessorKey ?? "").toLowerCase();
       const isCreated =
         headerText.includes("created") || idText.includes("created");
 
-      if (!isCreated) {
-        // Fallback: if value is a Timestamp-like, prettify it anyway
-        return {
-          ...col,
-          cell: ({ getValue }: { getValue: () => unknown }) => {
+      // Custom sorting function for createdAt columns (handles Firestore timestamps)
+      const sortingFn = isCreated
+        ? (rowA: any, rowB: any, columnId: string) => {
+            const aValue = getTimestampValue(
+              rowA.getValue(columnId)
+            );
+            const bValue = getTimestampValue(
+              rowB.getValue(columnId)
+            );
+            return aValue - bValue;
+          }
+        : undefined;
+
+      const colDef: any = {
+        ...col,
+        sortingFn: sortingFn || col.sortingFn,
+      };
+
+      // Only override cell if not already customized
+      if (!col?.cell) {
+        if (!isCreated) {
+          // Fallback: if value is a Timestamp-like, prettify it anyway
+          colDef.cell = ({ getValue }: { getValue: () => unknown }) => {
             const raw = getValue();
             // Only intercept if clearly a timestamp-like
             if (
@@ -93,21 +128,75 @@ export function DataTable<TData, TValue>({
               col.cell ?? ((ctx: any) => String(ctx.getValue() ?? "")),
               { getValue } as any
             );
-          },
-        };
+          };
+        } else {
+          colDef.cell = ({ getValue }: { getValue: () => unknown }) => {
+            return <span>{formatTimestampString(getValue())}</span>;
+          };
+        }
       }
 
-      return {
-        ...col,
-        cell: ({ getValue }: { getValue: () => unknown }) => {
-          return <span>{formatTimestampString(getValue())}</span>;
-        },
-      };
+      return colDef;
     }) as unknown as ColumnDef<TData, TValue>[];
 
     return [serialColumn, ...mapped];
   }, [columns]);
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+
+  // Find createdAt column ID for default sorting (check original columns)
+  const createdAtColumnId = React.useMemo(() => {
+    const foundCol = (columns as unknown as Array<any>).find((col: any) => {
+      const headerText = typeof col?.header === "string" ? col.header.toLowerCase() : "";
+      const idText = String(col?.id ?? col?.accessorKey ?? "").toLowerCase();
+      return headerText.includes("created") || idText.includes("created");
+    });
+    return foundCol?.id ?? foundCol?.accessorKey ?? undefined;
+  }, [columns]);
+
+  // Track if user has manually changed sorting
+  const userHasSortedRef = React.useRef(false);
+  const prevDataLengthRef = React.useRef(data.length);
+
+  // Initialize sorting with createdAt descending (newest first) if column exists
+  const [sorting, setSorting] = React.useState<SortingState>(() => {
+    if (createdAtColumnId) {
+      return [{ id: String(createdAtColumnId), desc: true }];
+    }
+    return [];
+  });
+
+  // Override setSorting to track user interactions
+  const handleSortingChange = React.useCallback((updater: any) => {
+    userHasSortedRef.current = true;
+    // Handle both function and direct value updates
+    if (typeof updater === "function") {
+      setSorting(updater);
+    } else {
+      setSorting(updater);
+    }
+  }, []);
+
+  // Reset to default sorting when new data is added (if user hasn't manually sorted)
+  // This ensures new records appear at the top
+  React.useEffect(() => {
+    // Check if data length increased (new items added)
+    if (data.length > prevDataLengthRef.current) {
+      // Reset user sorting flag when new data arrives so new items appear at top
+      userHasSortedRef.current = false;
+      prevDataLengthRef.current = data.length;
+      // Apply default sorting for new data
+      if (createdAtColumnId) {
+        setSorting([{ id: String(createdAtColumnId), desc: true }]);
+      }
+    } else {
+      prevDataLengthRef.current = data.length;
+    }
+
+    // Apply default sorting if we have createdAt column and user hasn't sorted
+    if (createdAtColumnId && data.length > 0 && !userHasSortedRef.current && sorting.length === 0) {
+      setSorting([{ id: String(createdAtColumnId), desc: true }]);
+    }
+  }, [data.length, createdAtColumnId, sorting.length]);
+
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   );
@@ -126,7 +215,7 @@ export function DataTable<TData, TValue>({
       globalFilter,
       pagination,
     },
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,

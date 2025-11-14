@@ -23,6 +23,7 @@ const BillingTable = () => {
         if (!user) return toast.error("Not authenticated.");
 
         const collections = await readDocuments("bills");
+        // Sorting is now handled automatically by the DataTable component
         setData(collections);
         toast.success(`Loaded ${collections.length} bills`);
       } catch (error) {
