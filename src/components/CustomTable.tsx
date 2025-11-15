@@ -54,11 +54,23 @@ export function DataTable<TData, TValue>({
       id: "__serial",
       header: "#",
       cell: ({ row, table }: any) => {
+        // Get the paginated row model (already sorted and filtered)
+        // This ensures serial numbers reflect the current sort order
+        const paginatedRows = table.getRowModel().rows;
+        // Find the current row's index in the paginated (sorted) rows
+        const rowIndex = paginatedRows.findIndex((r: any) => r.id === row.id);
+        
+        // Get pagination state
         const { pageIndex, pageSize } = table.getState().pagination ?? {
           pageIndex: 0,
-          pageSize: table?.getState?.().pagination?.pageSize ?? 10,
+          pageSize: 10,
         };
-        const serialNumber = pageIndex * pageSize + row.index + 1;
+        
+        // Calculate serial number: position in current page + offset from pagination
+        // Use rowIndex from paginated rows to ensure it reflects sorted order
+        // If rowIndex is -1 (not found), fall back to row.index as safety
+        const indexInPage = rowIndex >= 0 ? rowIndex : row.index;
+        const serialNumber = pageIndex * pageSize + indexInPage + 1;
         return <span>{serialNumber}</span>;
       },
       enableHiding: false,

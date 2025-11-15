@@ -9,10 +9,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { Pencil, Trash2, Printer } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import Swal from "sweetalert2";
 import { generateBillHTML, printBill, type BillData } from "@/lib/billGenerator";
 import { COMPANY_CONFIG } from "@/lib/utils";
+import { Timestamp } from "firebase/firestore";
 
 // Helper function to convert bill data to BillData format
 const transformBillToBillData = (bill: any): BillData => {
@@ -85,12 +86,57 @@ const transformBillToBillData = (bill: any): BillData => {
 export const BillActions = ({ bill }: { bill: any }) => {
   const { deleteDocument, updateDocument, refreshData } = useFirestoreCRUD();
   const [open, setOpen] = useState(false);
+  
+  // Extract date from bill's createdAt for manual date input
+  const getDateFromBill = useCallback(() => {
+    if (bill.createdAt) {
+      let date: Date;
+      if (typeof bill.createdAt.toDate === "function") {
+        date = bill.createdAt.toDate();
+      } else if (bill.createdAt.seconds) {
+        date = new Date(bill.createdAt.seconds * 1000);
+      } else {
+        return "";
+      }
+      // Format as YYYY-MM-DD for date input
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+    return "";
+  }, [bill]);
+
   const [edited, setEdited] = useState({
     name: bill.name || "",
     number: bill.number || "",
     note: bill.note || "",
   });
+  const [manualDate, setManualDate] = useState<string>("");
   const [loading, setLoading] = useState(false);
+
+  // Initialize manual date when dialog opens
+  useEffect(() => {
+    if (open) {
+      setManualDate(getDateFromBill());
+    }
+  }, [open, getDateFromBill]);
+
+  const getManualDateTimestamp = useCallback((dateString: string) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    date.setHours(18, 0, 0, 0); // Set to 6 PM (18:00)
+    return Timestamp.fromDate(date);
+  }, []);
+
+  const getManualDateKey = useCallback((dateString: string) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    const yy = String(date.getFullYear()).slice(-2);
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yy}${mm}${dd}`;
+  }, []);
 
   const handleDelete = async () => {
     const confirm = await Swal.fire({
@@ -120,7 +166,35 @@ export const BillActions = ({ bill }: { bill: any }) => {
   const handleEditSave = async () => {
     try {
       setLoading(true);
-      await updateDocument("bills", bill.id!, edited);
+      
+      const updateData: any = { ...edited };
+      
+      // Handle manual date if set
+      if (manualDate) {
+        const manualKey = getManualDateKey(manualDate);
+        const manualTimestamp = getManualDateTimestamp(manualDate);
+        if (manualKey && manualTimestamp) {
+          updateData.dateKey = manualKey;
+          updateData.createdAt = manualTimestamp;
+          updateData.isManualDate = true;
+          
+          // Append manual date note if date was manually entered
+          const manualDateNote = "Date and time manually entered.";
+          let finalNote = updateData.note || "";
+          
+          // Check if note already contains the manual date note (to avoid duplicates)
+          if (!finalNote.includes(manualDateNote)) {
+            if (finalNote) {
+              finalNote = `${finalNote} ${manualDateNote}`;
+            } else {
+              finalNote = manualDateNote;
+            }
+            updateData.note = finalNote;
+          }
+        }
+      }
+      
+      await updateDocument("bills", bill.id!, updateData);
       Swal.fire("Updated!", "Bill details updated successfully.", "success");
       setOpen(false);
     } catch (err: any) {
@@ -279,6 +353,27 @@ export const BillActions = ({ bill }: { bill: any }) => {
                   setEdited((p) => ({ ...p, note: e.target.value }))
                 }
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Manual Date (Optional)</label>
+              <Input
+                type="date"
+                value={manualDate}
+                onChange={(e) => setManualDate(e.target.value)}
+                placeholder="Select date for manual entry"
+                className="cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                onFocus={(e) => {
+                  // Open calendar picker when input is focused
+                  if (e.target.showPicker) {
+                    e.target.showPicker();
+                  }
+                }}
+              />
+              {manualDate && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Date and time will be set to {new Date(manualDate).toLocaleDateString()} at 6:00 PM
+                </p>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">

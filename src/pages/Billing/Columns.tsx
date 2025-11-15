@@ -1,16 +1,13 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { BillActions } from "./BillingActions";
 import { formatCurrency } from "@/lib/utils";
- 
+
 export type Bill = {
   id?: string;
   invoiceId: string;
   name: string;
   number?: string;
   note?: string;
-  gstEnabled?: boolean;
-  sgst?: number;
-  cgst?: number;
   subtotal?: number;
   total?: number;
   createdAt?: any;
@@ -28,30 +25,6 @@ export const billingColumns: ColumnDef<Bill, any>[] = [
     cell: ({ row }) => {
       const subtotal = row.getValue("subtotal") as number;
       return <span>{subtotal ? formatCurrency(subtotal) : "₹0.00"}</span>;
-    },
-  },
-  {
-    accessorKey: "gstEnabled",
-    header: "GST",
-    cell: ({ row }) => {
-      const gstEnabled = row.getValue("gstEnabled") as boolean;
-      return <span>{gstEnabled ? "Yes" : "No"}</span>;
-    },
-  },
-  {
-    accessorKey: "cgst",
-    header: "CGST",
-    cell: ({ row }) => {
-      const cgst = row.getValue("cgst") as number;
-      return <span>{cgst ? formatCurrency(cgst) : "₹0.00"}</span>;
-    },
-  },
-  {
-    accessorKey: "sgst",
-    header: "SGST",
-    cell: ({ row }) => {
-      const sgst = row.getValue("sgst") as number;
-      return <span>{sgst ? formatCurrency(sgst) : "₹0.00"}</span>;
     },
   },
   {

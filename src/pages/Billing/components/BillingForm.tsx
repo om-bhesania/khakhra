@@ -15,9 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { COMPANY_CONFIG } from "@/lib/utils";
 import { ChevronDown, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { Timestamp } from "firebase/firestore";
 import {
   useCallback,
   useEffect,
@@ -95,12 +97,46 @@ const BillingForm = () => {
   const [submitting, setSubmitting] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
   const [custData, setCustData] = useState<any>([]);
+  const [isYesterday, setIsYesterday] = useState(false);
+  const [manualDate, setManualDate] = useState<string>("");
 
   const todayKey = useMemo(() => {
     const d = new Date();
     const yy = String(d.getFullYear()).slice(-2);
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
+    return `${yy}${mm}${dd}`;
+  }, []);
+
+  const yesterdayKey = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const yy = String(d.getFullYear()).slice(-2);
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yy}${mm}${dd}`;
+  }, []);
+
+  const getYesterdayTimestamp = useCallback(() => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(23, 59, 59, 999); // Set to end of yesterday
+    return Timestamp.fromDate(yesterday);
+  }, []);
+
+  const getManualDateTimestamp = useCallback((dateString: string) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    date.setHours(18, 0, 0, 0); // Set to 6 PM (18:00)
+    return Timestamp.fromDate(date);
+  }, []);
+
+  const getManualDateKey = useCallback((dateString: string) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    const yy = String(date.getFullYear()).slice(-2);
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
     return `${yy}${mm}${dd}`;
   }, []);
 
@@ -278,14 +314,51 @@ const BillingForm = () => {
         }
       }
 
+      // Determine dateKey and createdAt based on manual date, isYesterday, or default
+      let finalDateKey: string;
+      let finalCreatedAt: Timestamp | undefined;
+      let isManualDate = false;
+
+      if (manualDate) {
+        // Manual date takes priority
+        const manualKey = getManualDateKey(manualDate);
+        const manualTimestamp = getManualDateTimestamp(manualDate);
+        if (manualKey && manualTimestamp) {
+          finalDateKey = manualKey;
+          finalCreatedAt = manualTimestamp;
+          isManualDate = true;
+        } else {
+          // Fallback to today if manual date is invalid
+          finalDateKey = todayKey;
+        }
+      } else if (isYesterday) {
+        // Use yesterday's date
+        finalDateKey = yesterdayKey;
+        finalCreatedAt = getYesterdayTimestamp();
+      } else {
+        // Default to today
+        finalDateKey = todayKey;
+      }
+
+      // Append manual date note if date was manually entered
+      let finalNote = values.note || "";
+      if (isManualDate) {
+        const manualDateNote = "Date and time manually entered.";
+        if (finalNote) {
+          finalNote = `${finalNote} ${manualDateNote}`;
+        } else {
+          finalNote = manualDateNote;
+        }
+      }
+
       const billData = {
         invoiceId: finalId,
         sequence: seq,
-        dateKey: todayKey,
+        dateKey: finalDateKey,
         customerId: selectedCustomerId,
         name: customerName || values.name,
         number: customerPhone || values.number,
-        note: values.note,
+        note: finalNote,
         gstEnabled: values.gstEnabled,
         gstPercent: Number(values.gstPercent) || 0,
         cgst,
@@ -299,6 +372,8 @@ const BillingForm = () => {
           name: customerName,
           phone: customerPhone,
         },
+        ...(finalCreatedAt && { createdAt: finalCreatedAt }),
+        ...(isManualDate && { isManualDate: true }),
       };
 
       await addDocument("bills", billData);
@@ -366,6 +441,8 @@ const BillingForm = () => {
       setSelectedCustomerId("");
       setCustomerName("");
       setCustomerPhone("");
+      setIsYesterday(false);
+      setManualDate("");
 
       nav("/billing/view");
       toast.success("Bill saved successfully");
@@ -653,6 +730,54 @@ const BillingForm = () => {
               />
             </div>
           )}
+        </div>
+
+        {/* Manual Date Entry */}
+        <div>
+          <label className="mb-1 block text-sm font-medium">Manual Date (Optional)</label>
+          <Input
+            type="date"
+            value={manualDate}
+            onChange={(e) => {
+              setManualDate(e.target.value);
+              // Clear isYesterday when manual date is set
+              if (e.target.value) {
+                setIsYesterday(false);
+              }
+            }}
+            placeholder="Select date for manual entry"
+            className="cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+            onFocus={(e) => {
+              // Open calendar picker when input is focused
+              if (e.target.showPicker) {
+                e.target.showPicker();
+              }
+            }}
+          />
+          {manualDate && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Date and time will be set to {new Date(manualDate).toLocaleDateString()} at 6:00 PM
+            </p>
+          )}
+        </div>
+
+        {/* Is Yesterday's Checkbox */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="isYesterday"
+            checked={isYesterday}
+            disabled={!!manualDate}
+            onCheckedChange={(checked) => {
+              setIsYesterday(checked === true);
+              // Clear manual date when isYesterday is checked
+              if (checked) {
+                setManualDate("");
+              }
+            }}
+          />
+          <label htmlFor="isYesterday" className="text-sm font-medium cursor-pointer">
+            Is yesterday's {manualDate && "(disabled when manual date is set)"}
+          </label>
         </div>
 
         {/* GST */}
