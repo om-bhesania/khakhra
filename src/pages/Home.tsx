@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import {
   IndianRupee,
@@ -30,6 +31,7 @@ import {
 const Home = () => {
   const { readDocuments, loading, error } = useFirestoreCRUD();
   const [timeFilter, setTimeFilter] = useState("today");
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [invoices, setInvoices] = useState([]);
   const [inventory, setInventory] = useState([]);
   const timeFilters = [
@@ -80,6 +82,20 @@ const Home = () => {
     fetchData();
   }, [readDocuments]);
 
+  // Helper function to get dateKey from a date string (YYYY-MM-DD format)
+  const getDateKeyFromDate = (dateString: string): string | null => {
+    if (!dateString) return null;
+    try {
+      const date = new Date(dateString);
+      const yy = String(date.getFullYear()).slice(-2);
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return `${yy}${mm}${dd}`;
+    } catch {
+      return null;
+    }
+  };
+
   // Filter invoices based on selected time period
   const filteredInvoices = useMemo(() => {
     if (!invoices.length) return [];
@@ -91,24 +107,34 @@ const Home = () => {
     const yesterdayStart = todayStart - 24 * 60 * 60; // 24 hours ago (start of yesterday)
     const yesterdayEnd = todayStart; // End of yesterday (start of today)
 
-    return invoices.filter((invoice: any) => {
-      const invoiceTime = invoice.createdAt?.seconds || 0;
+    return invoices
+      .filter((invoice: any) => {
+        const invoiceTime = invoice.createdAt?.seconds || 0;
+        const invoiceDateKey = invoice.dateKey;
 
-      switch (timeFilter) {
-        case "today":
-          return invoiceTime >= todayStart;
-        case "yesterday":
-          return invoiceTime >= yesterdayStart && invoiceTime < yesterdayEnd;
-        case "week":
-          return invoiceTime >= now - 7 * 24 * 60 * 60;
-        case "month":
-          return invoiceTime >= now - 30 * 24 * 60 * 60;
-        case "all":
-        default:
-          return true;
-      }
-    });
-  }, [invoices, timeFilter]);
+        switch (timeFilter) {
+          case "today":
+            return invoiceTime >= todayStart;
+          case "yesterday":
+            return invoiceTime >= yesterdayStart && invoiceTime < yesterdayEnd;
+          case "week":
+            return invoiceTime >= now - 7 * 24 * 60 * 60;
+          case "month":
+            return invoiceTime >= now - 30 * 24 * 60 * 60;
+          case "all":
+          default:
+            return true;
+        }
+      })
+      .filter((invoice: any) => {
+        // Apply date filter if a date is selected
+        if (selectedDate) {
+          const targetDateKey = getDateKeyFromDate(selectedDate);
+          return invoice.dateKey === targetDateKey;
+        }
+        return true;
+      });
+  }, [invoices, timeFilter, selectedDate]);
 
   // Get most recent 5 invoices sorted by date (newest first)
   const recentInvoices = useMemo(() => {
@@ -407,6 +433,28 @@ const Home = () => {
                 </button>
               );
             })}
+            {/* Date Filter - Separate and Always Visible */}
+            <div className="flex items-center justify-end gap-2">
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer w-full shrink-0"
+                onFocus={(e) => {
+                  if (e.target.showPicker) {
+                    e.target.showPicker();
+                  }
+                }}
+              />
+              {selectedDate && (
+                <button
+                  onClick={() => setSelectedDate("")}
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
