@@ -29,11 +29,14 @@ import {
 } from "recharts";
 
 const Home = () => {
-  const { readDocuments, loading, error } = useFirestoreCRUD();
+  const { subscribeToCollection, error } = useFirestoreCRUD();
   const [timeFilter, setTimeFilter] = useState("today");
   const [selectedDate, setSelectedDate] = useState<string>("");
-  const [invoices, setInvoices] = useState([]);
-  const [inventory, setInventory] = useState([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [isBillsReady, setIsBillsReady] = useState(false);
+  const [isInventoryReady, setIsInventoryReady] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const timeFilters = [
     { value: "today", label: "Today", icon: Calendar },
     { value: "yesterday", label: "Yesterday", icon: Clock },
@@ -52,35 +55,56 @@ const Home = () => {
     return Math.round(num).toLocaleString("en-IN");
   };
 
-  // Fetch invoices and inventory on component mount
-  // With Firestore persistence enabled, this will:
-  // 1. Serve from cache first (instant load)
-  // 2. Fetch updates from server in background
-  // 3. Only read changed documents (massive token savings)
+  // Real-time bills subscription
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Firestore automatically uses cache if available, then syncs with server
-        // This reduces read operations significantly (95-99% reduction)
-        const invoicesData: any = await readDocuments("bills", {
-          limit: 1000,
-          orderBy: "createdAt",
-          orderDirection: "desc",
-        });
-        const inventoryData: any = await readDocuments("inventory", {
-          limit: 1000,
-          orderBy: "createdAt",
-          orderDirection: "desc",
-        });
-        setInvoices(invoicesData || []);
-        setInventory(inventoryData || []);
-      } catch (err) {
-        console.error("Error fetching data:", err);
+    setIsBillsReady(false);
+    const unsubscribe = subscribeToCollection("bills", {
+      limit: 1000,
+      orderBy: "createdAt",
+      orderDirection: "desc",
+      onUpdate: (docs) => {
+        setInvoices(docs || []);
+        setIsBillsReady(true);
+      },
+      onError: (errMsg) => {
+        console.error("Bills subscription error:", errMsg);
+        setSubscriptionError(errMsg);
+      },
+    });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
       }
     };
+  }, [subscribeToCollection]);
 
-    fetchData();
-  }, [readDocuments]);
+  // Real-time inventory subscription
+  useEffect(() => {
+    setIsInventoryReady(false);
+    const unsubscribe = subscribeToCollection("inventory", {
+      limit: 1000,
+      orderBy: "createdAt",
+      orderDirection: "desc",
+      onUpdate: (docs) => {
+        setInventory(docs || []);
+        setIsInventoryReady(true);
+      },
+      onError: (errMsg) => {
+        console.error("Inventory subscription error:", errMsg);
+        setSubscriptionError(errMsg);
+      },
+    });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [subscribeToCollection]);
+
+  const dashboardError = subscriptionError || error;
+  const isDashboardReady = isBillsReady && isInventoryReady;
 
   // Helper function to get dateKey from a date string (YYYY-MM-DD format)
   const getDateKeyFromDate = (dateString: string): string | null => {
@@ -110,7 +134,6 @@ const Home = () => {
     return invoices
       .filter((invoice: any) => {
         const invoiceTime = invoice.createdAt?.seconds || 0;
-        const invoiceDateKey = invoice.dateKey;
 
         switch (timeFilter) {
           case "today":
@@ -380,23 +403,23 @@ const Home = () => {
     return null;
   };
 
-  if (loading && !invoices.length) {
+  if (dashboardError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="animate-spin h-12 w-12 mx-auto" />
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+          <p className="text-red-800 font-semibold">Error loading data</p>
+          <p className="text-red-600 text-sm mt-2">{dashboardError}</p>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (!isDashboardReady && !invoices.length && !inventory.length) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-          <p className="text-red-800 font-semibold">Error loading data</p>
-          <p className="text-red-600 text-sm mt-2">{error}</p>
+        <div className="text-center">
+          <Loader2 className="animate-spin h-12 w-12 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -408,9 +431,11 @@ const Home = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Your Business Dashboard
-            </h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Your Business Dashboard
+              </h1>
+            </div>
             <p className="text-gray-500 mt-1">See how your business is doing</p>
           </div>
 

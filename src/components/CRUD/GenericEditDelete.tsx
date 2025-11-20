@@ -31,6 +31,7 @@ export const GenericActions = ({
 }: GenericActionsProps) => {
   const { deleteDocument, updateDocument } = useFirestoreCRUD();
   const [open, setOpen] = useState(false);
+  const resolvedCollection = record.__collectionPath || collection;
   const [edited, setEdited] = useState<any>(() =>
     editableFields.reduce(
       (acc, key) => ({ ...acc, [key]: record[key] || "" }),
@@ -53,7 +54,7 @@ export const GenericActions = ({
     if (confirm.isConfirmed) {
       try {
         setLoading(true);
-        await deleteDocument(collection, record.id);
+        await deleteDocument(resolvedCollection, record.id);
 
         // ✅ Update parent state immediately
         onAfterDelete?.();
@@ -70,7 +71,7 @@ export const GenericActions = ({
   const handleEditSave = async () => {
     try {
       setLoading(true);
-      await updateDocument(collection, record.id!, edited);
+      await updateDocument(resolvedCollection, record.id!, edited);
 
       // ✅ Update parent state immediately
       onAfterUpdate?.(edited);

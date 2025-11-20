@@ -1,39 +1,53 @@
 import { DataTable } from "@/components/CustomTable";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
-import { getAuth } from "firebase/auth";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { billingColumns } from "../Columns";
 import { genCsvFileName } from "@/lib/utils";
 import BillViewModal from "./BillViewModal";
 
 const BillingTable = () => {
-  const [data, setData] = useState<any>([]);
-  const { readDocuments } = useFirestoreCRUD();
-  const [isLoading, setIsLoading] = useState(false);
+  const [data, setData] = useState<any[]>([]);
+  const { subscribeToCollection } = useFirestoreCRUD();
+  const [isLoading, setIsLoading] = useState(true);
+  // @ts-ignore
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [selectedBill, setSelectedBill] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const auth = getAuth();
+
+  const handleDeleteFromUI = useCallback((billId: string) => {
+    setData((prev) => prev.filter((bill) => bill.id !== billId));
+  }, []);
+
+  const columns = useMemo(
+    () => billingColumns({ onDeleted: handleDeleteFromUI }),
+    [handleDeleteFromUI]
+  );
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        const user = auth.currentUser;
-        if (!user) return toast.error("Not authenticated.");
-
-        const collections = await readDocuments("bills");
-        // Sorting is now handled automatically by the DataTable component
-        setData(collections);
-        toast.success(`Loaded ${collections.length} bills`);
-      } catch (error) {
-        toast.error("Error fetching bills");
-      } finally {
+    setIsLoading(true);
+    const unsubscribe = subscribeToCollection("bills", {
+      limit: 1000,
+      orderBy: "createdAt",
+      orderDirection: "desc",
+      onUpdate: (docs) => {
+        setData(docs || []);
         setIsLoading(false);
+        setSubscriptionError(null);
+      },
+      onError: (errMsg) => {
+        setSubscriptionError(errMsg);
+        setIsLoading(false);
+        toast.error(errMsg || "Error fetching bills");
+      },
+    });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
       }
     };
-    fetchData();
-  }, []);
+  }, [subscribeToCollection]);
   const csvData = data.map((item: any) => ({ 
     invoiceId: item.invoiceId,  
     name: item.name,
@@ -75,7 +89,7 @@ const BillingTable = () => {
   return (
     <>
       <DataTable
-        columns={billingColumns}
+        columns={columns}
         data={data}
         loading={isLoading}
         csvData={csvData}

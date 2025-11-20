@@ -107,6 +107,9 @@ class FirestoreCache {
   }
 }
 
+// Shared cache instance so all components use the same in-memory data
+const sharedFirestoreCache = new FirestoreCache();
+
 /**
  * Simplified Firestore CRUD Hook with User-Specific Collections
  */
@@ -116,7 +119,7 @@ export function useFirestoreCRUD() {
   const auth = getAuth();
 
   const collections = useRef<Map<string, CollectionSchema>>(new Map());
-  const cache = useRef(new FirestoreCache());
+  const cache = useRef<FirestoreCache>(sharedFirestoreCache);
   const subscriptions = useRef<Map<string, Unsubscribe>>(new Map());
   const throttleTimers = useRef<Map<string, number>>(new Map());
 
@@ -323,9 +326,10 @@ export function useFirestoreCRUD() {
           const document = {
             id: docSnap.id,
             ...docSnap.data(),
+            __collectionPath: collPath,
           } as unknown as DocumentWithId<T>;
 
-          cache.current.set(cacheKey, document);
+        cache.current.set(cacheKey, document);
           setLoading(false);
           return document;
         } else {
@@ -426,6 +430,7 @@ export function useFirestoreCRUD() {
         const documents = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
+          __collectionPath: collPath,
         })) as unknown as Array<DocumentWithId<T>>;
 
         // Update in-memory cache (for instant UI updates)
@@ -476,6 +481,7 @@ export function useFirestoreCRUD() {
             const cachedDocuments = cacheSnapshot.docs.map((doc) => ({
               id: doc.id,
               ...doc.data(),
+              __collectionPath: collPath,
             })) as unknown as Array<DocumentWithId<T>>;
 
             cache.current.set(cacheKey, cachedDocuments);
@@ -540,6 +546,7 @@ export function useFirestoreCRUD() {
         const documents = snapshot.docs.map((d) => ({
           id: d.id,
           ...d.data(),
+          __collectionPath: collectionName,
         })) as unknown as Array<DocumentWithId<T>>;
 
         setLoading(false);
@@ -805,10 +812,11 @@ export function useFirestoreCRUD() {
               }
 
               const timer = setTimeout(() => {
-                const documents = snapshot.docs.map((doc) => ({
-                  id: doc.id,
-                  ...doc.data(),
-                }));
+        const documents = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          __collectionPath: collPath,
+        }));
                 options.onUpdate(documents);
                 lastUpdate = Date.now();
               }, throttleMs - (now - lastUpdate));
@@ -1040,7 +1048,8 @@ export function useFirestoreCRUD() {
         const snapshot = await getDocs(q as any);
         const documents = snapshot.docs.map((doc) => {
           const data = doc.data() as Record<string, any>;
-          return { id: doc.id, ...data };
+          // @ts-ignore
+          return { id: doc.id, ...data, __collectionPath: collPath };
         }) as any;
         setLoading(false);
         return documents as Array<DocumentWithId<T>>;

@@ -15,7 +15,13 @@ export type Bill = {
   paymentMode?: string;
 };
 
-export const billingColumns: ColumnDef<Bill, any>[] = [
+interface BillingColumnOptions {
+  onDeleted?: (billId: string) => void;
+}
+
+export const billingColumns = (
+  options?: BillingColumnOptions
+): ColumnDef<Bill, any>[] => [
   { accessorKey: "invoiceId", header: "Invoice ID" },
   { accessorKey: "name", header: "Name" },
   { accessorKey: "number", header: "Number" },
@@ -63,6 +69,8 @@ export const billingColumns: ColumnDef<Bill, any>[] = [
   {
     id: "actions",
     header: "Actions",
-    cell: ({ row }) => <BillActions bill={row.original} />,
+    cell: ({ row }) => (
+      <BillActions bill={row.original} onDeleted={options?.onDeleted} />
+    ),
   },
 ];

@@ -83,9 +83,15 @@ const transformBillToBillData = (bill: any): BillData => {
   };
 };
 
-export const BillActions = ({ bill }: { bill: any }) => {
+interface BillActionsProps {
+  bill: any;
+  onDeleted?: (billId: string) => void;
+}
+
+export const BillActions = ({ bill, onDeleted }: BillActionsProps) => {
   const { deleteDocument, updateDocument, refreshData } = useFirestoreCRUD();
   const [open, setOpen] = useState(false);
+  const collectionPath = bill.__collectionPath || "bills";
   
   // Extract date from bill's createdAt for manual date input
   const getDateFromBill = useCallback(() => {
@@ -152,8 +158,9 @@ export const BillActions = ({ bill }: { bill: any }) => {
     if (confirm.isConfirmed) {
       try {
         setLoading(true);
-        await deleteDocument("bills", bill.id);
-        await refreshData("bills");
+        await deleteDocument(collectionPath, bill.id);
+        await refreshData(collectionPath);
+        onDeleted?.(bill.id);
         Swal.fire("Deleted!", "Bill has been deleted.", "success");
       } catch (error: any) {
         Swal.fire("Error", error.message || "Failed to delete bill", "error");
@@ -194,7 +201,7 @@ export const BillActions = ({ bill }: { bill: any }) => {
         }
       }
       
-      await updateDocument("bills", bill.id!, updateData);
+      await updateDocument(collectionPath, bill.id!, updateData);
       Swal.fire("Updated!", "Bill details updated successfully.", "success");
       setOpen(false);
     } catch (err: any) {
