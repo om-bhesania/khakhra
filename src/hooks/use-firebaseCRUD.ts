@@ -110,6 +110,14 @@ class FirestoreCache {
 // Shared cache instance so all components use the same in-memory data
 const sharedFirestoreCache = new FirestoreCache();
 
+const MAX_QUERY_LIMIT = 1000;
+const sanitizeLimit = (value?: number) => {
+  if (typeof value !== "number" || Number.isNaN(value) || value <= 0) {
+    return undefined;
+  }
+  return Math.min(value, MAX_QUERY_LIMIT);
+};
+
 /**
  * Simplified Firestore CRUD Hook with User-Specific Collections
  */
@@ -403,13 +411,15 @@ export function useFirestoreCRUD() {
           );
         }
 
-        const limitCount = options?.limit ? Math.min(options.limit, 1000) : 100;
-        constraints.push(limit(limitCount));
+        const limitCount = sanitizeLimit(options?.limit);
+        if (limitCount) {
+          constraints.push(limit(limitCount));
+        }
 
         const q =
           constraints.length > 0
             ? query(collectionRef, ...constraints)
-            : query(collectionRef, limit(100));
+            : query(collectionRef);
 
         // With persistence enabled, getDocs() automatically:
         // 1. Returns cached data immediately if available
@@ -466,13 +476,15 @@ export function useFirestoreCRUD() {
               );
             }
 
-            const limitCount = options?.limit ? Math.min(options.limit, 1000) : 100;
-            constraints.push(limit(limitCount));
+            const limitCount = sanitizeLimit(options?.limit);
+            if (limitCount) {
+              constraints.push(limit(limitCount));
+            }
 
             const q =
               constraints.length > 0
                 ? query(collectionRef, ...constraints)
-                : query(collectionRef, limit(100));
+                : query(collectionRef);
 
             // Try to get from cache (offline mode)
             const cacheSnapshot = await getDocsFromCache(q);
@@ -534,13 +546,15 @@ export function useFirestoreCRUD() {
             orderBy(options.orderBy, options.orderDirection || "asc")
           );
         }
-        const limitCount = options?.limit ? Math.min(options.limit, 1000) : 100;
-        constraints.push(limit(limitCount));
+        const limitCount = sanitizeLimit(options?.limit);
+        if (limitCount) {
+          constraints.push(limit(limitCount));
+        }
 
         const q =
           constraints.length > 0
             ? query(collectionRef, ...constraints)
-            : query(collectionRef, limit(100));
+            : query(collectionRef);
 
         const snapshot = await getDocs(q);
         const documents = snapshot.docs.map((d) => ({
@@ -788,13 +802,15 @@ export function useFirestoreCRUD() {
           );
         }
 
-        const limitCount = options.limit ? Math.min(options.limit, 1000) : 100;
-        constraints.push(limit(limitCount));
+        const limitCount = sanitizeLimit(options.limit);
+        if (limitCount) {
+          constraints.push(limit(limitCount));
+        }
 
         const q =
           constraints.length > 0
             ? query(collectionRef, ...constraints)
-            : query(collectionRef, limit(100));
+            : query(collectionRef);
 
         // Throttle updates
         let lastUpdate = 0;
@@ -1041,8 +1057,10 @@ export function useFirestoreCRUD() {
             orderBy(options.orderBy, options.orderDirection || "asc")
           );
         }
-        const limitCount = options?.limit ? Math.min(options.limit, 1000) : 100;
-        constraints.push(limit(limitCount));
+        const limitCount = sanitizeLimit(options?.limit);
+        if (limitCount) {
+          constraints.push(limit(limitCount));
+        }
 
         const q = query(groupRef, ...(constraints as any));
         const snapshot = await getDocs(q as any);
