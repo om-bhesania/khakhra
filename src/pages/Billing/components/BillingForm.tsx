@@ -97,6 +97,8 @@ const BillingForm = () => {
   const [submitting, setSubmitting] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
   const [custData, setCustData] = useState<any>([]);
+  const [totalPackets, setTotalPackets] = useState<number | null>(null);
+  const [isLoadingPackets, setIsLoadingPackets] = useState(false);
   const [isYesterday, setIsYesterday] = useState(false);
   const [manualDate, setManualDate] = useState<string>("");
 
@@ -148,6 +150,54 @@ const BillingForm = () => {
   useEffect(() => {
     fetchCustomreData();
   }, []);
+
+  // Calculate total packets for selected customer across all bills
+  useEffect(() => {
+    if (!selectedCustomerId) {
+      setTotalPackets(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsLoadingPackets(true);
+        const bills = await readDocuments<any>("bills", {
+          where: [
+            {
+              field: "customerId",
+              operator: "==",
+              value: selectedCustomerId,
+            },
+          ],
+        });
+
+        if (cancelled) return;
+
+        const total = bills.reduce((billSum: number, bill: any) => {
+          if (!bill.lineItems || !Array.isArray(bill.lineItems)) return billSum;
+          const billPackets = bill.lineItems.reduce(
+            (sum: number, item: any) => sum + (Number(item.quantity) || 0),
+            0
+          );
+          return billSum + billPackets;
+        }, 0);
+
+        setTotalPackets(total);
+      } catch (err) {
+        console.error("Failed to load total packets for customer:", err);
+        setTotalPackets(null);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingPackets(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomerId, readDocuments]);
 
   const modeItems = useMemo(
     () => modes.sort((a, b) => a.localeCompare(b)),
@@ -482,37 +532,53 @@ const BillingForm = () => {
               </Button>
             </div>
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Name</label>
-            <CustomerCombobox
-              customers={custData}
-              value={selectedCustomerId}
-              onSelect={(customer) => {
-                if (customer) {
-                  setSelectedCustomerId(customer.id);
-                  setCustomerName(customer.name);
-                  setCustomerPhone(customer.number || "");
-                }
-              }}
-              onCreateNew={(name) => {
-                setSelectedCustomerId("");
-                setCustomerName(name);
-                setCustomerPhone("");
-                nav(`/customer/add?name=${name}`);
-              }}
-              placeholder="Select or search customer..."
-              searchPlaceholder="Type to search..."
-              allowCreateNew={true}
-              createNewText="Add New Customer"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Number</label>
-            <Input
-              name="number"
-              value={customerPhone || values.number}
-              onChange={onChange}
-            />
+          <div className="sm:col-span-2">
+            <div className="flex item-center justify-between gap-2">
+              <div className="w-full">
+                <label className="mb-1 block text-sm font-medium">Name</label>
+                <CustomerCombobox
+                  customers={custData}
+                  value={selectedCustomerId}
+                  onSelect={(customer) => {
+                    if (customer) {
+                      setSelectedCustomerId(customer.id);
+                      setCustomerName(customer.name);
+                      setCustomerPhone(customer.number || "");
+                    }
+                  }}
+                  onCreateNew={(name) => {
+                    setSelectedCustomerId("");
+                    setCustomerName(name);
+                    setCustomerPhone("");
+                    nav(`/customer/add?name=${name}`);
+                  }}
+                  placeholder="Select or search customer..."
+                  searchPlaceholder="Type to search..."
+                  allowCreateNew={true}
+                  createNewText="Add New Customer"
+                />
+              </div>
+              <div className="w-full">
+                <label className="mb-1 block text-sm font-medium">Number</label>
+                <Input
+                  name="number"
+                  value={customerPhone || values.number}
+                  onChange={onChange}
+                />
+              </div>
+              <div className="w-full">
+                <label className="mb-1 block text-sm font-medium  text-center">
+                  Total packets
+                </label>
+                <div className="font-semibold text-center text-xl bg-primary/10 rounded-md p-1">
+                  {selectedCustomerId
+                    ? isLoadingPackets
+                      ? "Calculating..."
+                      : (totalPackets ?? 0).toLocaleString("en-IN")
+                    : "-"}
+                </div>
+              </div>
+            </div>
           </div>
           <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium">Note</label>
@@ -734,7 +800,9 @@ const BillingForm = () => {
 
         {/* Manual Date Entry */}
         <div>
-          <label className="mb-1 block text-sm font-medium">Manual Date (Optional)</label>
+          <label className="mb-1 block text-sm font-medium">
+            Manual Date (Optional)
+          </label>
           <Input
             type="date"
             value={manualDate}
@@ -756,7 +824,8 @@ const BillingForm = () => {
           />
           {manualDate && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Date and time will be set to {new Date(manualDate).toLocaleDateString()} at 6:00 PM
+              Date and time will be set to{" "}
+              {new Date(manualDate).toLocaleDateString()} at 6:00 PM
             </p>
           )}
         </div>
@@ -775,7 +844,10 @@ const BillingForm = () => {
               }
             }}
           />
-          <label htmlFor="isYesterday" className="text-sm font-medium cursor-pointer">
+          <label
+            htmlFor="isYesterday"
+            className="text-sm font-medium cursor-pointer"
+          >
             Is yesterday's {manualDate && "(disabled when manual date is set)"}
           </label>
         </div>
@@ -848,4 +920,3 @@ const BillingForm = () => {
 };
 
 export default BillingForm;
-
