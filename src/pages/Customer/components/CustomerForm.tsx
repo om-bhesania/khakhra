@@ -121,6 +121,33 @@ function CustomerForm() {
                   : /\d{10,}/.test(value)
                   ? undefined
                   : "Enter a valid number",
+              onChangeAsync: async ({ value }) => {
+                const trimmedValue = value?.trim();
+                if (!trimmedValue || !/\d{10,}/.test(trimmedValue)) {
+                  return undefined; // Let the sync validator handle format errors
+                }
+
+                try {
+                  const existingCustomers = await readDocuments<any>("customers", {
+                    where: [
+                      {
+                        field: "number",
+                        operator: "==",
+                        value: trimmedValue,
+                      },
+                    ],
+                  });
+
+                  if (existingCustomers && existingCustomers.length > 0) {
+                    return "This phone number is already registered";
+                  }
+                  return undefined;
+                } catch (error) {
+                  console.error("Error checking duplicate number:", error);
+                  // Don't block submission if check fails, but log it
+                  return undefined;
+                }
+              },
             }}
           >
             {(field) => (
