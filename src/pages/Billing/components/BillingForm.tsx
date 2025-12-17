@@ -151,7 +151,7 @@ const BillingForm = () => {
     fetchCustomreData();
   }, []);
 
-  // Calculate total packets for selected customer across all bills
+  // Calculate total packets for selected customer across all bills + manual packets
   useEffect(() => {
     if (!selectedCustomerId) {
       setTotalPackets(null);
@@ -162,6 +162,11 @@ const BillingForm = () => {
     (async () => {
       try {
         setIsLoadingPackets(true);
+        
+        // Fetch customer data to get manual packets
+        const customer = await readDocById<any>("customers", selectedCustomerId);
+        
+        // Fetch all bills for this customer
         const bills = await readDocuments<any>("bills", {
           where: [
             {
@@ -174,7 +179,8 @@ const BillingForm = () => {
 
         if (cancelled) return;
 
-        const total = bills.reduce((billSum: number, bill: any) => {
+        // Calculate packets from bills
+        const billPacketsTotal = bills.reduce((billSum: number, bill: any) => {
           if (!bill.lineItems || !Array.isArray(bill.lineItems)) return billSum;
           const billPackets = bill.lineItems.reduce(
             (sum: number, item: any) => sum + (Number(item.quantity) || 0),
@@ -182,6 +188,14 @@ const BillingForm = () => {
           );
           return billSum + billPackets;
         }, 0);
+
+        // Get manual packets from customer data (if exists)
+        const manualPackets = customer?.manuallyAddedPackets 
+          ? Number(customer.manuallyAddedPackets) 
+          : 0;
+
+        // Total = bill packets + manual packets
+        const total = billPacketsTotal + manualPackets;
 
         setTotalPackets(total);
       } catch (err) {
@@ -197,7 +211,7 @@ const BillingForm = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedCustomerId, readDocuments]);
+  }, [selectedCustomerId, readDocuments, readDocById]);
 
   const modeItems = useMemo(
     () => modes.sort((a, b) => a.localeCompare(b)),
