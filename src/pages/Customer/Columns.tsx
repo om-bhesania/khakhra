@@ -9,7 +9,25 @@ export const customerColumns = (
 ): ColumnDef<any>[] => [
   { accessorKey: "name", header: "Name" },
   { accessorKey: "number", header: "Number" },
-  { accessorKey: "manuallyAddedPackets", header: "Packets" },
+  {
+    id: "totalPackets",
+    header: "Packets",
+    cell: ({ row }) => {
+      const totalPackets = row.original.totalPackets ?? 0;
+      const manualPackets = row.original.manualPackets ?? 0;
+      const billPackets = row.original.billPackets ?? 0;
+      
+      return (
+        <div className="text-center">
+          <div className="font-semibold">{totalPackets.toLocaleString("en-IN")}</div>
+          <div className="text-xs text-muted-foreground">
+            Manual: {manualPackets.toLocaleString("en-IN")} | 
+            Bills: {billPackets.toLocaleString("en-IN")}
+          </div>
+        </div>
+      );
+    },
+  },
   {
     accessorKey: "createdAt",
     header: "Created At",
