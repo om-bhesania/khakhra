@@ -107,56 +107,94 @@ const Home = () => {
   const isDashboardReady = isBillsReady && isInventoryReady;
 
   // Helper function to get dateKey from a date string (YYYY-MM-DD format)
+  // Fixed to handle timezone properly by parsing the date components directly
   const getDateKeyFromDate = (dateString: string): string | null => {
     if (!dateString) return null;
     try {
-      const date = new Date(dateString);
-      const yy = String(date.getFullYear()).slice(-2);
-      const mm = String(date.getMonth() + 1).padStart(2, "0");
-      const dd = String(date.getDate()).padStart(2, "0");
+      // Parse YYYY-MM-DD format directly to avoid timezone issues
+      const [year, month, day] = dateString.split('-').map(Number);
+      if (!year || !month || !day) return null;
+      
+      const yy = String(year).slice(-2);
+      const mm = String(month).padStart(2, "0");
+      const dd = String(day).padStart(2, "0");
       return `${yy}${mm}${dd}`;
     } catch {
       return null;
     }
   };
 
+  // Helper function to get start and end timestamps for a specific date
+  const getDateRangeForDate = (dateString: string): { start: number; end: number } | null => {
+    if (!dateString) return null;
+    try {
+      // Parse YYYY-MM-DD format directly to avoid timezone issues
+      const [year, month, day] = dateString.split('-').map(Number);
+      if (!year || !month || !day) return null;
+      
+      const startDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+      
+      return {
+        start: startDate.getTime() / 1000,
+        end: endDate.getTime() / 1000
+      };
+    } catch {
+      return null;
+    }
+  };
+
   // Filter invoices based on selected time period
+  // FIXED: When a custom date is selected, it overrides the time filter
   const filteredInvoices = useMemo(() => {
     if (!invoices.length) return [];
 
+    // If a specific date is selected, filter by that date only (ignore time filter)
+    if (selectedDate) {
+      const targetDateKey = getDateKeyFromDate(selectedDate);
+      const dateRange = getDateRangeForDate(selectedDate);
+      
+      return invoices.filter((invoice: any) => {
+        // Try dateKey match first (more reliable if available)
+        if (invoice.dateKey && targetDateKey) {
+          return invoice.dateKey === targetDateKey;
+        }
+        
+        // Fallback to timestamp-based matching
+        if (dateRange && invoice.createdAt?.seconds) {
+          const invoiceTime = invoice.createdAt.seconds;
+          return invoiceTime >= dateRange.start && invoiceTime <= dateRange.end;
+        }
+        
+        return false;
+      });
+    }
+
+    // Otherwise, apply time filter
     const now = Date.now() / 1000;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStart = today.getTime() / 1000;
-    const yesterdayStart = todayStart - 24 * 60 * 60; // 24 hours ago (start of yesterday)
-    const yesterdayEnd = todayStart; // End of yesterday (start of today)
+    const yesterdayStart = todayStart - 24 * 60 * 60;
+    const yesterdayEnd = todayStart;
 
-    return invoices
-      .filter((invoice: any) => {
-        const invoiceTime = invoice.createdAt?.seconds || 0;
+    return invoices.filter((invoice: any) => {
+      const invoiceTime = invoice.createdAt?.seconds || 0;
 
-        switch (timeFilter) {
-          case "today":
-            return invoiceTime >= todayStart;
-          case "yesterday":
-            return invoiceTime >= yesterdayStart && invoiceTime < yesterdayEnd;
-          case "week":
-            return invoiceTime >= now - 7 * 24 * 60 * 60;
-          case "month":
-            return invoiceTime >= now - 30 * 24 * 60 * 60;
-          case "all":
-          default:
-            return true;
-        }
-      })
-      .filter((invoice: any) => {
-        // Apply date filter if a date is selected
-        if (selectedDate) {
-          const targetDateKey = getDateKeyFromDate(selectedDate);
-          return invoice.dateKey === targetDateKey;
-        }
-        return true;
-      });
+      switch (timeFilter) {
+        case "today":
+          return invoiceTime >= todayStart;
+        case "yesterday":
+          return invoiceTime >= yesterdayStart && invoiceTime < yesterdayEnd;
+        case "week":
+          return invoiceTime >= now - 7 * 24 * 60 * 60;
+        case "month":
+          return invoiceTime >= now - 30 * 24 * 60 * 60;
+        case "all":
+        default:
+          return true;
+      }
+    });
   }, [invoices, timeFilter, selectedDate]);
 
   // Get most recent 5 invoices sorted by date (newest first)
@@ -443,15 +481,24 @@ const Home = () => {
           <div className="flex flex-wrap gap-2 bg-white dark:bg-gray-800 p-2 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             {timeFilters.map((filter) => {
               const Icon = filter.icon;
+              const isDisabled = !!selectedDate; // Disable when custom date is selected
               return (
                 <button
                   key={filter.value}
-                  onClick={() => setTimeFilter(filter.value)}
+                  onClick={() => {
+                    if (!isDisabled) {
+                      setTimeFilter(filter.value);
+                    }
+                  }}
+                  disabled={isDisabled}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
-                    timeFilter === filter.value
+                    isDisabled
+                      ? "opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-500"
+                      : timeFilter === filter.value
                       ? "bg-blue-500 text-white shadow-md"
                       : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
+                  title={isDisabled ? "Clear the custom date to use time filters" : ""}
                 >
                   <Icon className="h-4 w-4" />
                   {filter.label}
@@ -460,21 +507,31 @@ const Home = () => {
             })}
             {/* Date Filter - Separate and Always Visible */}
             <div className="flex items-center justify-end gap-2">
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer w-full shrink-0"
-                onFocus={(e) => {
-                  if (e.target.showPicker) {
-                    e.target.showPicker();
-                  }
-                }}
-              />
+              <div className="flex flex-col gap-1">
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className={`cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer w-full shrink-0 ${
+                    selectedDate ? "border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800" : ""
+                  }`}
+                  onFocus={(e) => {
+                    if (e.target.showPicker) {
+                      e.target.showPicker();
+                    }
+                  }}
+                  placeholder="Custom date"
+                />
+                {selectedDate && (
+                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                    Custom date active
+                  </span>
+                )}
+              </div>
               {selectedDate && (
                 <button
                   onClick={() => setSelectedDate("")}
-                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap"
                 >
                   Clear
                 </button>
@@ -483,19 +540,27 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Today's Summary Card - Simple Language */}
-        {timeFilter === "today" && (
+        {/* Summary Card - Adapts to filter type */}
+        {(timeFilter === "today" || selectedDate) && (
           <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800">
             <CardHeader>
               <CardTitle className="text-blue-900 dark:text-blue-100 text-xl">
-                Today's Summary
+                {selectedDate 
+                  ? `Summary for ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}`
+                  : "Today's Summary"
+                }
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    Money Earned Today
+                    {selectedDate ? "Money Earned" : "Money Earned Today"}
                   </p>
                   <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                     {formatCurrency(analytics.totalRevenue)}
@@ -527,7 +592,7 @@ const Home = () => {
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    Profit Today
+                    {selectedDate ? "Profit" : "Profit Today"}
                   </p>
                   <p
                     className={`text-3xl font-bold ${
@@ -538,7 +603,7 @@ const Home = () => {
                   >
                     {formatCurrency(analytics.totalProfit)}
                   </p>
-                  {yesterdayAnalytics && (
+                  {yesterdayAnalytics && !selectedDate && (
                     <p className="text-xs mt-2">
                       {(() => {
                         const comp = getComparison(
@@ -565,12 +630,12 @@ const Home = () => {
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    Items Sold Today
+                    {selectedDate ? "Items Sold" : "Items Sold Today"}
                   </p>
                   <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                     {formatNumber(analytics.totalItemsSold)}
                   </p>
-                  {yesterdayAnalytics && (
+                  {yesterdayAnalytics && !selectedDate && (
                     <p className="text-xs mt-2">
                       {(() => {
                         const comp = getComparison(

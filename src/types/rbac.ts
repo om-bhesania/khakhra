@@ -60,6 +60,7 @@ export const SYSTEM_MODULES: Module[] = [
   { id: 'inventory', name: 'Inventory', isSystem: true },
   { id: 'billing', name: 'Billing', isSystem: true },
   { id: 'customer', name: 'Customer', isSystem: true },
+  { id: 'expenses', name: 'Expense Tracking', isSystem: true },
   { id: 'roles', name: 'Role Management', isSystem: true },
 ];
 

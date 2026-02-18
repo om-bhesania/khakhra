@@ -7,6 +7,12 @@ import {
 } from "@/pages/Customer/Customer";
 import { InventoryAdd, InventoryView } from "@/pages/Inventory/Inventory";
 import { EmployeesAdd, EmployeesView } from "@/pages/Employees/Employees";
+import {
+  ExpenseDashboard,
+  ExpenseAdd,
+  ExpenseView,
+} from "@/pages/Expenses/Expenses";
+import ExpenseSetup from "@/pages/Expenses/ExpenseSetup";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import { AdminRolesView } from "@/pages/AdminRoles/AdminRoles";
@@ -32,6 +38,10 @@ import {
   UserRoundSearch,
   Users,
   Database,
+  Wallet,
+  PlusCircle,
+  List,
+  BarChart3,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import Home from "./../pages/Home";
@@ -47,7 +57,7 @@ export type AppRoute = {
   element?: any;
   hideSidebar?: boolean;
   rbac?: {
-    module: "dashboard" | "billing" | "inventory" | "customers" | "employees";
+    module: "dashboard" | "billing" | "inventory" | "customers" | "employees" | "expenses";
     action: "read" | "write" | "update" | "delete";
   };
   submenu?: Array<{
@@ -57,7 +67,7 @@ export type AppRoute = {
     hideSidebar?: boolean;
     element?: any;
     rbac?: {
-      module: "dashboard" | "billing" | "inventory" | "customers" | "employees";
+      module: "dashboard" | "billing" | "inventory" | "customers" | "employees" | "expenses";
       action: "read" | "write" | "update" | "delete";
     };
   }>;
@@ -187,6 +197,43 @@ export const appRoutes: AppRoute[] = [
         rbac: { module: "customers", action: "write" },
       },
     ],
+  },
+  {
+    name: "Expenses",
+    path: "/expenses",
+    type: "private",
+    icon: Wallet,
+    submenu: [
+      {
+        name: "Dashboard",
+        path: "/expenses/dashboard",
+        icon: BarChart3,
+        element: ExpenseDashboard,
+        rbac: { module: "expenses", action: "read" },
+      },
+      {
+        name: "View Transactions",
+        path: "/expenses/view",
+        icon: List,
+        element: ExpenseView,
+        rbac: { module: "expenses", action: "read" },
+      },
+      {
+        name: "Add Income/Expense",
+        path: "/expenses/add",
+        icon: PlusCircle,
+        element: ExpenseAdd,
+        rbac: { module: "expenses", action: "write" },
+      },
+    ],
+  },
+  {
+    name: "Expense Setup",
+    path: "/expenses/setup",
+    type: "private",
+    icon: Wallet,
+    element: ExpenseSetup,
+    hideSidebar: true,
   },
   {
     name: "Employees",

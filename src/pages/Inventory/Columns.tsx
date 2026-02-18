@@ -1,5 +1,6 @@
 // Columns.ts
 import { GenericActions } from "@/components/CRUD/GenericEditDelete";
+import { BarcodeDisplay } from "@/components/BarcodeDisplay";
 import type { ColumnDef } from "@tanstack/react-table";
 
 // Columns.ts
@@ -11,6 +12,18 @@ export const inventoryColumns = (
   { accessorKey: "quantity", header: "Quantity" },
   { accessorKey: "costPrice", header: "Cost Price (₹)" },
   { accessorKey: "sellingPrice", header: "Selling Price (₹)" },
+  {
+    id: "barcode",
+    header: "Barcode",
+    cell: ({ row }) => (
+      <BarcodeDisplay
+        productId={row.original.id}
+        productName={row.original.name || row.original.category || row.original.id}
+        barcode={row.original.barcode}
+        product={row.original}
+      />
+    ),
+  },
   {
     id: "actions",
     header: "Actions",

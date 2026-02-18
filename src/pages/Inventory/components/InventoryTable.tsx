@@ -20,7 +20,13 @@ const InventoryTable = () => {
         toast.error("Not authenticated. Please sign in.");
         return;
       }
-      const collections = await readDocuments("inventory");
+      // Force fresh data (bypass cache)
+      const collections = await readDocuments("inventory", { limit: 1000 });
+      console.log("📦 Fetched products:", collections.map(p => ({ 
+        name: p.name, 
+        barcode: p.barcode,
+        id: p.id 
+      })));
       setData(collections);
     } catch (err) {
       console.error("❌ Error fetching Inventory:", err);

@@ -1,13 +1,20 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { useForm } from "@tanstack/react-form";
-import { IndianRupee } from "lucide-react";
+import { IndianRupee, Package, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+import { useState, useCallback } from "react";
+import { generatePermanentBarcode } from "@/lib/barcodeUtils";
 
 function InventoryForm() {
-  const { addDocument } = useFirestoreCRUD();
+  const { addDocument, updateDocument, readDocuments } = useFirestoreCRUD();
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [existingBarcode, setExistingBarcode] = useState<string | null>(null);
+  const [showScanner, setShowScanner] = useState(false); // Scanner collapsed by default
 
   // Load and subscribe payment modes
   // useEffect(() => {
@@ -23,6 +30,58 @@ function InventoryForm() {
   //     if (typeof unsub === "function") unsub();
   //   };
   // }, [readDocuments, subscribeToCollection]);
+
+  // Handle barcode scan - pre-fill form with existing product data
+  const handleBarcodeScanned = useCallback(async (barcode: string) => {
+    try {
+      console.log("🔍 Scanning barcode on inventory form:", barcode);
+      
+      // Search for product by barcode field
+      const products = await readDocuments("inventory", {
+        where: [{
+          field: "barcode",
+          operator: "==",
+          value: barcode
+        }]
+      });
+
+      if (products && products.length > 0) {
+        const product = products[0];
+        console.log("✅ Product found:", product);
+        
+        // Pre-fill form with existing product data
+        form.setFieldValue("name", product.name || "");
+        form.setFieldValue("price", product.price || 0);
+        form.setFieldValue("quantity", product.quantity || 0);
+        form.setFieldValue("costPrice", product.costPrice || 0);
+        form.setFieldValue("sellingPrice", product.sellingPrice || 0);
+        form.setFieldValue("flavour", product.flavour || "");
+        form.setFieldValue("minStockAlertLevel", product.minStockAlertLevel);
+        
+        // Set edit mode
+        setIsEditMode(true);
+        setEditingProductId(product.id);
+        setExistingBarcode(product.barcode);
+        
+        toast.success(`Found: ${product.name}. Modify and save to update.`);
+      } else {
+        console.log("❌ Product not found with barcode:", barcode);
+        toast.error(`No product found with barcode: ${barcode}`);
+      }
+    } catch (error: any) {
+      console.error("❌ Error searching for product:", error);
+      toast.error("Failed to search for product: " + error.message);
+    }
+  }, [readDocuments]);
+
+  const handleClearForm = () => {
+    form.reset();
+    setIsEditMode(false);
+    setEditingProductId(null);
+    setExistingBarcode(null);
+    toast.info("Form cleared. Ready to add new product.");
+  };
+
   const form = useForm({
     defaultValues: {
       name: "",
@@ -87,17 +146,105 @@ function InventoryForm() {
           payload.minStockAlertLevel = Number(value.minStockAlertLevel);
         }
 
-        await addDocument("inventory", payload);
-        toast.success("Inventory item saved");
+        if (isEditMode && editingProductId) {
+          // UPDATE existing product
+          // Keep the existing barcode - never change it
+          if (existingBarcode) {
+            payload.barcode = existingBarcode;
+          }
+          
+          await updateDocument("inventory", editingProductId, payload);
+          toast.success("Product updated successfully!");
+          console.log("✅ Product updated:", editingProductId);
+        } else {
+          // ADD new product
+          // Generate barcode from product name
+          const newBarcode = generatePermanentBarcode(value.name);
+          payload.barcode = newBarcode;
+          
+          await addDocument("inventory", payload);
+          toast.success(`Product added! Barcode: ${newBarcode}`);
+          console.log("✅ New product created with barcode:", newBarcode);
+        }
+
+        // Reset form
         form.reset();
+        setIsEditMode(false);
+        setEditingProductId(null);
+        setExistingBarcode(null);
       } catch (err: any) {
         toast.error(err?.message || "Failed to save inventory item");
+        console.error("❌ Error saving product:", err);
       }
     },
   });
 
   return (
     <div className="w-full space-y-4">
+      {/* Barcode Scanner Section - Collapsible */}
+      <div className="rounded-md border-2 border-dashed border-primary/30 bg-primary/5">
+        <button
+          type="button"
+          onClick={() => setShowScanner(!showScanner)}
+          className="w-full p-4 flex items-center justify-between hover:bg-primary/10 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Package className="h-5 w-5 text-primary" />
+            <span className="text-sm font-medium">
+              Quick Stock Update via Barcode Scanner
+            </span>
+            {isEditMode && (
+              <span className="ml-2 text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full">
+                Edit Mode Active
+              </span>
+            )}
+          </div>
+          {showScanner ? (
+            <ChevronUp className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-muted-foreground" />
+          )}
+        </button>
+
+        {showScanner && (
+          <div className="px-4 pb-4 space-y-3">
+            <div className="flex items-center justify-between">
+              {isEditMode && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearForm}
+                >
+                  Clear & Add New
+                </Button>
+              )}
+            </div>
+            <BarcodeScanner 
+              onScan={handleBarcodeScanned}
+              placeholder="Scan product barcode to update stock..."
+              disabled={false}
+            />
+            <p className="text-xs text-muted-foreground">
+              {isEditMode ? (
+                <span className="text-amber-600 font-medium">
+                  ✏️ Edit Mode: Modifying "{form.state.values.name}". Change values and save to update.
+                </span>
+              ) : (
+                <span>
+                  Scan an existing product barcode to quickly update its stock. Or close this and fill the form below to add a new product manually.
+                </span>
+              )}
+            </p>
+            {existingBarcode && (
+              <p className="text-xs text-blue-600 font-mono">
+                🔖 Barcode: {existingBarcode} (permanent - will not change)
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
         <form
           className="space-y-4 rounded-lg p-4 bg-zinc-50 dark:bg-zinc-900 mt-12 w-full"
@@ -423,7 +570,7 @@ function InventoryForm() {
                 disabled={!canSubmit}
                 className="bg-rose-600 text-white hover:bg-rose-700"
               >
-                {isSubmitting ? "Saving..." : "Save Stock"}
+                {isSubmitting ? "Saving..." : isEditMode ? "Update Product" : "Add New Product"}
               </Button>
             )}
           </form.Subscribe>

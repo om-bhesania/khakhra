@@ -26,7 +26,7 @@ export async function logCrudUsage(
   collectionName: string,
   metadata?: CrudUsageLogData["metadata"]
 ): Promise<void> {
-  try {
+  try { 
     const auth = getAuth();
     const user = auth.currentUser;
 

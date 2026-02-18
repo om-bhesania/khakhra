@@ -16,7 +16,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
+import { useExpenseOperations } from "@/hooks/use-expenseOperations";
 import { COMPANY_CONFIG } from "@/lib/utils";
 import { ChevronDown, FileDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
@@ -69,6 +71,7 @@ const BillingForm = () => {
     loading,
     subscribeToCollection,
   } = useFirestoreCRUD();
+  const { updateRevenueStats } = useExpenseOperations();
   const [values, setValues] = useState<BillingFormValues>({
     id: "",
     name: "",
@@ -304,6 +307,70 @@ const BillingForm = () => {
     }));
   };
 
+  const handleBarcodeScanned = useCallback((barcode: string) => {
+    try {
+      console.log("🔍 Barcode scanned:", barcode);
+      console.log("📦 Inventory available:", inventory.length, "items");
+      
+      // Find product in inventory by permanent barcode field first, then fallback to ID
+      let product = inventory.find((item) => item.barcode === barcode);
+      
+      // Fallback to ID for backward compatibility (old products without barcode field)
+      if (!product) {
+        product = inventory.find((item) => item.id === barcode);
+      }
+      
+      if (!product) {
+        console.error("❌ Product not found with barcode/ID:", barcode);
+        toast.error(`Product not found. Scanned: ${barcode}`);
+        return;
+      }
+
+      console.log("✅ Product found:", product);
+
+      setValues((currentValues) => {
+        // Check if product is already in line items
+        const existingItemIndex = currentValues.lineItems.findIndex(
+          (item) => item.itemId === product.id
+        );
+
+        if (existingItemIndex !== -1) {
+          // If product already exists, increment quantity
+          const updatedLineItems = [...currentValues.lineItems];
+          updatedLineItems[existingItemIndex] = {
+            ...updatedLineItems[existingItemIndex],
+            quantity: updatedLineItems[existingItemIndex].quantity + 1,
+          };
+          toast.success(`Increased quantity for ${product.name || product.category || product.id}`);
+          return { ...currentValues, lineItems: updatedLineItems };
+        } else {
+          // Remove empty line items before adding
+          const nonEmptyItems = currentValues.lineItems.filter(
+            (item) => item.itemId !== ""
+          );
+
+          // Add new line item with scanned product
+          const newLineItem: LineItem = {
+            itemId: product.id,
+            itemName: product.name ?? product.category ?? product.id,
+            quantity: 1,
+            rate: Number(product.sellingPrice) || 0,
+            fullItem: product,
+          };
+
+          toast.success(`Added ${product.name || product.category || product.id} to bill`);
+          return {
+            ...currentValues,
+            lineItems: [...nonEmptyItems, newLineItem],
+          };
+        }
+      });
+    } catch (error: any) {
+      console.error("❌ Error processing barcode:", error);
+      toast.error("Failed to process barcode: " + error.message);
+    }
+  }, [inventory]);
+
   const removeLineItem = (idx: number) => {
     setValues((v) => ({
       ...v,
@@ -382,6 +449,7 @@ const BillingForm = () => {
       let finalDateKey: string;
       let finalCreatedAt: Timestamp | undefined;
       let isManualDate = false;
+      let finalMonthKey: string; // Add monthKey for optimized queries
 
       if (manualDate) {
         // Manual date takes priority
@@ -391,17 +459,27 @@ const BillingForm = () => {
           finalDateKey = manualKey;
           finalCreatedAt = manualTimestamp;
           isManualDate = true;
+          // Extract monthKey from manual date (YYYY-MM)
+          finalMonthKey = manualDate.slice(0, 7);
         } else {
           // Fallback to today if manual date is invalid
           finalDateKey = todayKey;
+          const now = new Date();
+          finalMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
         }
       } else if (isYesterday) {
         // Use yesterday's date
         finalDateKey = yesterdayKey;
         finalCreatedAt = getYesterdayTimestamp();
+        // Extract monthKey from yesterday
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        finalMonthKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}`;
       } else {
         // Default to today
         finalDateKey = todayKey;
+        const now = new Date();
+        finalMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
       }
 
       // Append manual date note if date was manually entered
@@ -419,6 +497,7 @@ const BillingForm = () => {
         invoiceId: finalId,
         sequence: seq,
         dateKey: finalDateKey,
+        monthKey: finalMonthKey, // Add monthKey for optimized queries
         customerId: selectedCustomerId,
         name: customerName || values.name,
         number: customerPhone || values.number,
@@ -441,6 +520,17 @@ const BillingForm = () => {
       };
 
       await addDocument("bills", billData);
+
+      // Update financeStats with revenue
+      try {
+        const billTimestamp = finalCreatedAt || Timestamp.now();
+        await updateRevenueStats(total, billTimestamp);
+        console.log("✅ Revenue stats updated successfully");
+      } catch (error: any) {
+        console.error("❌ Error updating revenue stats:", error);
+        // Show warning but don't fail the bill creation
+        toast.warning("Bill saved, but revenue stats update failed. Check expense dashboard setup.");
+      }
 
       // Print after saving if requested
       if (shouldPrint) {
@@ -509,7 +599,7 @@ const BillingForm = () => {
       setManualDate("");
 
       nav("/billing/view");
-      toast.success("Bill saved successfully");
+      toast.success("Bill saved successfully! Revenue updated in expense dashboard.");
     } catch (err: any) {
       toast.error(err?.message || "Failed to save bill");
       setSubmitting(false);
@@ -598,6 +688,21 @@ const BillingForm = () => {
             <label className="mb-1 block text-sm font-medium">Note</label>
             <Input name="note" value={values.note} onChange={onChange} />
           </div>
+        </div>
+
+        {/* Barcode Scanner */}
+        <div className="rounded-md border-2 border-dashed border-primary/30 bg-primary/5 p-4">
+          <label className="mb-2 block text-sm font-medium">
+            Quick Add via Barcode Scanner
+          </label>
+          <BarcodeScanner 
+            onScan={handleBarcodeScanned}
+            placeholder="Scan barcode or enter product ID..."
+            disabled={submitting}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Scan product barcode to automatically add it to the bill. If the product is already in the list, quantity will be increased.
+          </p>
         </div>
 
         {/* Line items */}
