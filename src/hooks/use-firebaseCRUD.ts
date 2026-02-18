@@ -1,3 +1,4 @@
+import { logCrudUsage } from "@/lib/crudUsageTracker";
 import { getAuth } from "firebase/auth";
 import type { DocumentData, Unsubscribe } from "firebase/firestore";
 import {
@@ -14,15 +15,14 @@ import {
   orderBy,
   query,
   QueryConstraint,
+  setDoc,
   Timestamp,
   updateDoc,
   where,
   writeBatch,
-  setDoc,
 } from "firebase/firestore";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { db } from "../config/firebase.config";
-import { logCrudUsage } from "@/lib/crudUsageTracker";
 
 // Base document type with Firebase metadata
 export interface FirestoreDocument {
@@ -837,7 +837,7 @@ export function useFirestoreCRUD() {
                 lastUpdate = Date.now();
               }, throttleMs - (now - lastUpdate));
 
-              throttleTimers.current.set(subscriptionKey, timer);
+              throttleTimers.current.set(subscriptionKey, timer as any);
             } else {
               // Update immediately
               const documents = snapshot.docs.map((doc) => ({

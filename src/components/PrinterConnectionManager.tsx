@@ -7,17 +7,16 @@
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Printer, Cable, CheckCircle, XCircle } from "lucide-react";
-import { useState, useEffect } from "react";
-import { toast } from "sonner";
 import {
+  autoReconnectPrinter,
   connectToPrinter,
   disconnectFromPrinter,
-  isPrinterConnected,
   isWebSerialSupported,
-  autoReconnectPrinter,
-  printTestLabel,
+  printTestLabel
 } from "@/lib/browserPrintService";
+import { Cable, CheckCircle, Printer, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export const PrinterConnectionManager = () => {
   const [isConnected, setIsConnected] = useState(false);

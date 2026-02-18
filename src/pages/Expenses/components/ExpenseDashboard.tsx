@@ -617,7 +617,7 @@ const ExpenseDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {expenseByCategoryData.map((cat, index) => (
+                {expenseByCategoryData.map((cat) => (
                   <div
                     key={cat.category}
                     className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"

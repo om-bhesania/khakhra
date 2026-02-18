@@ -1,8 +1,8 @@
-import { useCallback, useState } from "react";
-import { Timestamp, writeBatch, doc, getDoc, getDocs, collection, setDoc } from "firebase/firestore";
 import { db } from "@/config/firebase.config";
+import type { Expense, FinanceStats } from "@/types/expense";
 import { getAuth } from "firebase/auth";
-import type { Expense, ExpenseCategory, FinanceStats } from "@/types/expense";
+import { collection, doc, getDoc, getDocs, setDoc, Timestamp, writeBatch } from "firebase/firestore";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 /**

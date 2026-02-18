@@ -71,6 +71,7 @@ export interface ExpenseByCategoryData {
   amount: number;
   percentage: number;
   color: string;
+  [key: string]: string | number;
 }
 
 /**

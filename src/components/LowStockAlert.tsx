@@ -3,8 +3,7 @@ import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
+  DialogDescription, 
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";

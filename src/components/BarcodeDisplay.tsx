@@ -21,8 +21,7 @@ type BarcodeDisplayProps = {
 export const BarcodeDisplay = ({
   productId,
   productName,
-  barcode,
-  product,
+  barcode, 
 }: BarcodeDisplayProps) => {
   const [open, setOpen] = useState(false);
   const [labelQuantity, setLabelQuantity] = useState(2);

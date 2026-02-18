@@ -5,9 +5,11 @@
  * barcode labels to the TVS printer.
  */
 
-import { generateTSPLCommand, generateBatchTSPLCommand, type BarcodeLabel, type PrinterConfig, DEFAULT_PRINTER_CONFIG } from './tvsLabelPrinter';
+import type { BarcodeLabel } from "./tvsLabelPrinter";
 
-// Print server configuration
+ 
+
+// Print server configurationO
 const PRINT_SERVER_URL = 'http://localhost:3001';
 
 export interface PrintResult {
@@ -46,13 +48,11 @@ export async function checkPrintServer(): Promise<boolean> {
  * @returns Print result
  */
 export async function printBarcodeLabel(
-  label: BarcodeLabel,
-  config: PrinterConfig = DEFAULT_PRINTER_CONFIG
+  label: BarcodeLabel, 
 ): Promise<PrintResult> {
   try {
     // Generate TSPL commands
-    const commands = generateTSPLCommand(label, config);
-
+  
     console.log('📤 Sending print job to server...');
     console.log('Label:', label);
 
@@ -61,8 +61,7 @@ export async function printBarcodeLabel(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ commands }),
+      }, 
     });
 
     const result = await response.json();
@@ -91,12 +90,10 @@ export async function printBarcodeLabel(
  * @returns Print result
  */
 export async function printBarcodeLabels(
-  labels: BarcodeLabel[],
-  config: PrinterConfig = DEFAULT_PRINTER_CONFIG
+  labels: BarcodeLabel[], 
 ): Promise<PrintResult> {
   try {
-    // Generate TSPL commands for batch
-    const commands = generateBatchTSPLCommand(labels, config);
+    // Generate TSPL commands for batch 
 
     console.log(`📤 Sending batch print job (${labels.length} labels)...`);
 
@@ -105,8 +102,7 @@ export async function printBarcodeLabels(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ commands }),
+      }, 
     });
 
     const result = await response.json();

@@ -36,6 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { expenseCache } from "@/lib/expenseCache";
 
 const ITEMS_PER_PAGE = 20;
 

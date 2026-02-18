@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { seedExpenseCategories } from "@/scripts/seedExpenseCategories";
 import { addMonthKeyToBills } from "@/scripts/addMonthKeyToBills";
 import { populateRevenueFromBills } from "@/scripts/populateRevenueFromBills";
-import { Loader2, CheckCircle, XCircle } from "lucide-react";
+import { seedExpenseCategories } from "@/scripts/seedExpenseCategories";
+import { CheckCircle, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
