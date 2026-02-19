@@ -415,6 +415,21 @@ const BillingForm = () => {
 
   const submit = async (e: FormEvent, shouldPrint = false) => {
     e.preventDefault();
+    
+    // Validation: Check payment mode
+    if (!values.paymentMode || values.paymentMode.trim() === "") {
+      toast.error("Please select a payment mode");
+      setSubmitting(false);
+      return;
+    }
+    
+    // Validation: Check line items
+    if (values.lineItems.length === 0 || values.lineItems.every(li => !li.itemId)) {
+      toast.error("Please add at least one item to the bill");
+      setSubmitting(false);
+      return;
+    }
+    
     setSubmitting(true);
     try {
       let seq = 0;
@@ -560,7 +575,7 @@ const BillingForm = () => {
           sgst: values.gstEnabled ? sgst : 0,
           subtotal,
           total,
-          paymentMode: values.paymentMode || "Cash",
+          paymentMode: values.paymentMode,
         };
 
         const htmlContent = generateBillHTML(printData);
@@ -807,7 +822,9 @@ const BillingForm = () => {
 
         {/* Payment Mode */}
         <div>
-          <label className="mb-1 block text-sm font-medium">Payment Mode</label>
+          <label className="mb-1 block text-sm font-medium">
+            Payment Mode <span className="text-rose-600">*</span>
+          </label>
           {!showNewModeInput ? (
             <div className="flex gap-2">
               <DropdownMenu>
