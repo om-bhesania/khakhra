@@ -12,40 +12,26 @@ import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
 import { useForm } from "@tanstack/react-form";
 import { ChevronDown, IndianRupee, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 function CustomerForm() {
   const { addDocument, readDocuments, subscribeToCollection } =
     useFirestoreCRUD();
+  const [searchParams] = useSearchParams();
   const [modes, setModes] = useState<string[]>([]);
   const [isLoadingModes, setIsLoadingModes] = useState(false);
   const [showNewModeInput, setShowNewModeInput] = useState(false);
   const [newModeName, setNewModeName] = useState("");
   const [isAddingMode, setIsAddingMode] = useState(false);
 
-  // Load and subscribe payment modes
-  useEffect(() => {
-    let unsub: (() => void) | undefined;
-    (async () => {
-      setIsLoadingModes(true);
-      const initial = await readDocuments<{ name: string }>("paymentModes");
-      setModes(initial.map((m) => String((m as any).name)).filter(Boolean));
-      setIsLoadingModes(false);
-
-      unsub = subscribeToCollection("paymentModes", {
-        onUpdate: (data: Array<{ name: string }>) => {
-          setModes(data.map((d) => String(d.name)).filter(Boolean));
-        },
-      } as any);
-    })();
-    return () => {
-      if (typeof unsub === "function") unsub();
-    };
-  }, [readDocuments, subscribeToCollection]);
+  // Get pre-filled values from URL params
+  const prefilledName = searchParams.get("name") || "";
+  const prefilledNumber = searchParams.get("number") || "";
 
   const form = useForm({
     defaultValues: {
-      name: "",
-      number: "",
+      name: prefilledName,
+      number: prefilledNumber,
       paymentMode: "",
       paymentAmount: 0,
     },
@@ -73,6 +59,36 @@ function CustomerForm() {
       }
     },
   });
+
+  // Load and subscribe payment modes
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    (async () => {
+      setIsLoadingModes(true);
+      const initial = await readDocuments<{ name: string }>("paymentModes");
+      setModes(initial.map((m) => String((m as any).name)).filter(Boolean));
+      setIsLoadingModes(false);
+
+      unsub = subscribeToCollection("paymentModes", {
+        onUpdate: (data: Array<{ name: string }>) => {
+          setModes(data.map((d) => String(d.name)).filter(Boolean));
+        },
+      } as any);
+    })();
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
+  }, [readDocuments, subscribeToCollection]);
+
+  // Pre-fill form fields from URL params after mount
+  useEffect(() => {
+    if (prefilledName) {
+      form.setFieldValue("name", prefilledName);
+    }
+    if (prefilledNumber) {
+      form.setFieldValue("number", prefilledNumber);
+    }
+  }, [prefilledName, prefilledNumber]);
 
   const modeItems = useMemo(
     () => modes.sort((a, b) => a.localeCompare(b)),

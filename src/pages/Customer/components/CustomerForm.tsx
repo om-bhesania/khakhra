@@ -14,12 +14,15 @@ function CustomerForm() {
   const [modes, setModes] = useState<string[]>([]);
 
   const [nameFromUrl, setNameFromUrl] = useState<string>("");
+  const [numberFromUrl, setNumberFromUrl] = useState<string>("");
   const location = useLocation();
-  // Get name from URL
+  // Get name and number from URL
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const name = urlParams.get("name");
+    const number = urlParams.get("number");
     setNameFromUrl(name || "");
+    setNumberFromUrl(number || "");
   }, []);
 
   // Load and subscribe payment modes
@@ -156,7 +159,7 @@ function CustomerForm() {
                   Number
                 </label>
                 <Input
-                  value={field.state.value}
+                  value={field.state.value || numberFromUrl}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
                   inputMode="tel"

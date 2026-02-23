@@ -665,11 +665,22 @@ const BillingForm = () => {
                       setCustomerPhone(customer.number || "");
                     }
                   }}
-                  onCreateNew={(name) => {
+                  onCreateNew={(searchValue) => {
                     setSelectedCustomerId("");
-                    setCustomerName(name);
-                    setCustomerPhone("");
-                    nav(`/customer/add?name=${name}`);
+                    // Detect if searchValue is a phone number (7+ digits)
+                    const isPhoneNumber = /^\d{7,}$/.test(searchValue.trim());
+                    
+                    if (isPhoneNumber) {
+                      // If it's a phone number, pass it as number parameter
+                      setCustomerName("");
+                      setCustomerPhone(searchValue.trim());
+                      nav(`/customer/add?number=${encodeURIComponent(searchValue.trim())}`);
+                    } else {
+                      // Otherwise, it's a name
+                      setCustomerName(searchValue.trim());
+                      setCustomerPhone("");
+                      nav(`/customer/add?name=${encodeURIComponent(searchValue.trim())}`);
+                    }
                   }}
                   placeholder="Select or search customer..."
                   searchPlaceholder="Type to search..."
