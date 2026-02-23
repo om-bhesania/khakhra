@@ -1,15 +1,15 @@
+import { ProductCombobox } from "@/components/ComboBox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ProductCombobox } from "@/components/ComboBox";
 import { useFirestoreCRUD } from "@/hooks/use-firebaseCRUD";
+import type { SchemeProduct } from "@/types/scheme";
 import { useForm } from "@tanstack/react-form";
+import { Timestamp } from "firebase/firestore";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Timestamp } from "firebase/firestore";
-import type { SchemeFormValues, SchemeProduct } from "@/types/scheme";
 
 function SchemeForm() {
   const { addDocument, readDocuments } = useFirestoreCRUD();
