@@ -55,6 +55,7 @@ function CustomerHistory({ id }: HistoryProps) {
   const { readDocuments, readDocById, loading } = useFirestoreCRUD();
   const [allBills, setAllBills] = useState<Bill[]>([]);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [schemes, setSchemes] = useState<any[]>([]);
   const [dateFilter, setDateFilter] = useState<
     "all" | "7days" | "30days" | "90days"
   >("all");
@@ -87,9 +88,19 @@ function CustomerHistory({ id }: HistoryProps) {
     }
   };
 
+  const getSchemes = async () => {
+    try {
+      const schemesData = await readDocuments("schemes");
+      setSchemes(schemesData);
+    } catch (error) {
+      console.error("Error fetching schemes:", error);
+    }
+  };
+
   useEffect(() => {
     getBillHistory();
     getCustomerData();
+    getSchemes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
@@ -140,6 +151,62 @@ function CustomerHistory({ id }: HistoryProps) {
       itemsFromBills: Number(itemsFromBills),
     };
   }, [filteredBills, customer]);
+
+  // Calculate scheme products purchased (only from active schemes)
+  const schemeProductsPurchased = useMemo(() => {
+    const now = new Date();
+    
+    // Get only active schemes (current date is between start and end date)
+    const activeSchemes = schemes.filter((scheme) => {
+      const startDate = scheme.startDate?.toDate ? scheme.startDate.toDate() : new Date(scheme.startDate);
+      const endDate = scheme.endDate?.toDate ? scheme.endDate.toDate() : new Date(scheme.endDate);
+      return now >= startDate && now <= endDate;
+    });
+    
+    if (activeSchemes.length === 0) return [];
+    
+    // Collect all scheme products from active schemes
+    const schemeProductIds = new Set<string>();
+    const schemeProductNames = new Set<string>();
+    
+    activeSchemes.forEach(scheme => {
+      scheme.products?.forEach((product: any) => {
+        if (product.productId) schemeProductIds.add(product.productId);
+        if (product.productName) schemeProductNames.add(product.productName);
+      });
+    });
+    
+    // Find customer purchases that match scheme products
+    const productMap = new Map<string, any>();
+    
+    allBills.forEach((bill) => {
+      bill.lineItems.forEach((item) => {
+        // Check if this item is a scheme product
+        const isSchemeProduct = schemeProductIds.has(item.itemId) || 
+                                schemeProductNames.has(item.itemName);
+        
+        if (isSchemeProduct) {
+          const key = item.itemId || item.itemName;
+          const existing = productMap.get(key);
+          
+          if (existing) {
+            existing.quantity += item.quantity;
+            existing.totalAmount += item.quantity * item.rate;
+          } else {
+            productMap.set(key, {
+              itemName: item.itemName,
+              itemId: item.itemId,
+              quantity: item.quantity,
+              rate: item.rate,
+              totalAmount: item.quantity * item.rate,
+            });
+          }
+        }
+      });
+    });
+    
+    return Array.from(productMap.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [schemes, allBills]);
 
   const formatDate = (timestamp: { seconds: number }) => {
     return getDate(timestamp).toLocaleDateString("en-IN", {
@@ -253,6 +320,78 @@ function CustomerHistory({ id }: HistoryProps) {
                   <FileText className="w-4 h-4" />
                   No bill associated
                 </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scheme Products Purchased (Only from Active Schemes) */}
+      {schemeProductsPurchased.length > 0 && (
+        <div className="bg-card rounded-lg border shadow-sm p-6 mb-6 border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-lg">
+              <Package className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                🎉 Scheme Products Purchased
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Products from currently active schemes that this customer has purchased.
+              </p>
+              
+              <div className="bg-white dark:bg-gray-800 rounded-lg border overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-900 border-b">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                        Product Name
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">
+                        Quantity
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">
+                        Rate
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">
+                        Total Amount
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {schemeProductsPurchased.map((product: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-900">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-foreground">{product.itemName}</p>
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold">
+                          {product.quantity}
+                        </td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">
+                          ₹{product.rate}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-foreground">
+                          ₹{product.totalAmount.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50 dark:bg-gray-900 border-t">
+                    <tr>
+                      <td className="px-4 py-3 font-semibold text-foreground">
+                        Total
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-foreground">
+                        {schemeProductsPurchased.reduce((sum, p) => sum + p.quantity, 0)}
+                      </td>
+                      <td className="px-4 py-3"></td>
+                      <td className="px-4 py-3 text-right font-bold text-primary">
+                        ₹{schemeProductsPurchased.reduce((sum, p) => sum + p.totalAmount, 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
           </div>
@@ -379,7 +518,7 @@ function CustomerHistory({ id }: HistoryProps) {
                     >
                       <div>
                         <p className="font-medium text-foreground">
-                          Category: {item.rate}
+                          {item.itemName}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           Qty: {item.quantity} × ₹{item.rate}

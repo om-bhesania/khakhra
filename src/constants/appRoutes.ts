@@ -13,6 +13,7 @@ import {
   ExpenseView,
 } from "@/pages/Expenses/Expenses";
 import ExpenseSetup from "@/pages/Expenses/ExpenseSetup";
+import { SchemeAdd, SchemeView } from "@/pages/Schemes/Schemes";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import { AdminRolesView } from "@/pages/AdminRoles/AdminRoles";
@@ -42,6 +43,7 @@ import {
   PlusCircle,
   List,
   BarChart3,
+  Tag,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import Home from "./../pages/Home";
@@ -221,6 +223,26 @@ export const appRoutes: AppRoute[] = [
         path: "/expenses/add",
         icon: PlusCircle,
         element: ExpenseAdd,
+      },
+    ],
+  },
+  {
+    name: "Schemes",
+    path: "/schemes",
+    type: "private",
+    icon: Tag,
+    submenu: [
+      {
+        name: "View Schemes",
+        path: "/schemes/view",
+        icon: List,
+        element: SchemeView,
+      },
+      {
+        name: "Add Scheme",
+        path: "/schemes/add",
+        icon: PlusCircle,
+        element: SchemeAdd,
       },
     ],
   },

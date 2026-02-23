@@ -31,6 +31,167 @@ export interface Customer {
 }
 
 /**
+ * Product data structure
+ */
+export interface Product {
+  id: string;
+  name: string;
+  barcode?: string;
+  price?: number;
+  sellingPrice?: number;
+  [key: string]: any;
+}
+
+/**
+ * Props for ProductCombobox component
+ */
+export interface ProductComboboxProps {
+  /** Array of product data to populate the combobox */
+  products: Product[];
+  /** Currently selected product ID */
+  value?: string;
+  /** Callback when a product is selected */
+  onSelect?: (product: Product | null) => void;
+  /** Placeholder text for the trigger button */
+  placeholder?: string;
+  /** Placeholder text for the search input */
+  searchPlaceholder?: string;
+  /** Message to show when no products found */
+  emptyMessage?: string;
+  /** Whether the combobox is disabled */
+  disabled?: boolean;
+  /** Custom className for the trigger button */
+  className?: string;
+  /** Whether to show product barcodes in the list */
+  showBarcodes?: boolean;
+}
+
+/**
+ * ProductCombobox - A searchable combobox for selecting products
+ */
+export const ProductCombobox = React.forwardRef<
+  HTMLButtonElement,
+  ProductComboboxProps
+>(
+  (
+    {
+      products = [],
+      value = "",
+      onSelect,
+      placeholder = "Select product...",
+      searchPlaceholder = "Search products...",
+      emptyMessage = "No product found.",
+      disabled = false,
+      className,
+      showBarcodes = true,
+    },
+    ref
+  ) => {
+    const [open, setOpen] = React.useState(false);
+    const [searchValue, setSearchValue] = React.useState("");
+
+    // Find selected product
+    const selectedProduct = React.useMemo(
+      () => products.find((product) => product.id === value),
+      [products, value]
+    );
+
+    // Handle product selection
+    const handleSelect = React.useCallback(
+      (product: Product) => {
+        onSelect?.(product);
+        setOpen(false);
+        setSearchValue("");
+      },
+      [onSelect]
+    );
+
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            ref={ref}
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className={cn(
+              "w-full justify-between",
+              !selectedProduct && "text-muted-foreground",
+              className
+            )}
+          >
+            <span className="truncate">
+              {selectedProduct ? selectedProduct.name : placeholder}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[var(--radix-popover-trigger-width)] p-0"
+          align="start"
+        >
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder={searchPlaceholder}
+              value={searchValue}
+              onValueChange={setSearchValue}
+              className="h-9"
+            />
+            <CommandList>
+              <CommandEmpty>
+                <div className="p-4 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {emptyMessage}
+                  </p>
+                </div>
+              </CommandEmpty>
+              <CommandGroup>
+                {products
+                  .filter(
+                    (product) =>
+                      product.name
+                        .toLowerCase()
+                        .includes(searchValue.toLowerCase()) ||
+                      product.barcode?.toLowerCase().includes(searchValue.toLowerCase())
+                  )
+                  .map((product) => (
+                    <CommandItem
+                      key={product.id}
+                      value={product.id}
+                      onSelect={() => handleSelect(product)}
+                      className="cursor-pointer"
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4 shrink-0",
+                          value === product.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="font-medium truncate">
+                          {product.name}
+                        </span>
+                        {showBarcodes && product.barcode && (
+                          <span className="text-xs text-muted-foreground truncate">
+                            Barcode: {product.barcode}
+                          </span>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  }
+);
+
+ProductCombobox.displayName = "ProductCombobox";
+
+/**
  * Props for CustomerCombobox component
  */
 export interface CustomerComboboxProps {
