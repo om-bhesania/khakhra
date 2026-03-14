@@ -317,9 +317,8 @@ const Home = () => {
           (fullItem.sellingPrice || fullItem.price || 0) * quantity;
         const cost = (fullItem.costPrice || 0) * quantity;
         const profit = revenue - cost;
-        const categoryKey = fullItem.price || fullItem.sellingPrice || 0;
-        // Use item name for display, fallback to price if name doesn't exist
-        const itemName = fullItem.name || `₹${categoryKey}`;
+        const categoryKey = item.itemId || fullItem.name || fullItem.price || fullItem.sellingPrice || "unknown";
+        const itemName = fullItem.name || item.itemName || `₹${fullItem.price || fullItem.sellingPrice || 0}`;
 
         totalRevenue += revenue;
         totalCost += cost;
@@ -328,31 +327,21 @@ const Home = () => {
 
         if (!categoryData[categoryKey]) {
           categoryData[categoryKey] = {
-            category: itemName, // Use name for display
-            name: itemName, // Store name separately
-            price: categoryKey, // Keep price for categorization logic
+            category: itemName,
+            name: itemName,
+            price: fullItem.sellingPrice || fullItem.price || 0,
             revenue: 0,
             cost: 0,
             profit: 0,
             quantity: 0,
             profitMargin: 0,
-            // Future implementation: Track individual flavors
-            // This will store flavor-wise breakdown when implemented
-            // flavors: {
-            //   'Masala': { quantity: 5, profit: 100 },
-            //   'Jeera': { quantity: 3, profit: 60 }
-            // }
           };
-        } else {
-          // If category already exists but name is just a price, update it with the actual name
-          // This handles cases where first item had no name but subsequent items do
-          if (
-            categoryData[categoryKey].name?.startsWith("₹") &&
-            !itemName.startsWith("₹")
-          ) {
-            categoryData[categoryKey].category = itemName;
-            categoryData[categoryKey].name = itemName;
-          }
+        } else if (
+          categoryData[categoryKey].name?.startsWith("₹") &&
+          !itemName.startsWith("₹")
+        ) {
+          categoryData[categoryKey].category = itemName;
+          categoryData[categoryKey].name = itemName;
         }
 
         categoryData[categoryKey].revenue += revenue;
